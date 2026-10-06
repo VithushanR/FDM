@@ -1,0 +1,1 @@
+{"status": 422, "body": {"errors": [{"field": "month", "message": "A month view uses the All times slice. Choose All times, or remove the month."}]}}

@@ -1,0 +1,1 @@
+{"status": 200, "body": {"status": "outside", "nearest_km": 59.16, "message": "This location is more than 10 km from any collision in the data. The data covers Great Britain only (England, Scotland and Wales).", "allowed": false}}

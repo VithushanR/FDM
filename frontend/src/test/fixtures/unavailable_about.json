@@ -1,0 +1,8 @@
+{
+  "status": 503,
+  "body": {
+    "available": false,
+    "message": "the confusion matrix row for Fatal sums to 1134, but its support is 1133"
+  },
+  "captured": "in-process, real app code, with the named file missing or damaged"
+}

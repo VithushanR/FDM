@@ -1,0 +1,15 @@
+{
+  "status": 422,
+  "body": {
+    "errors": [
+      {
+        "field": "date",
+        "message": "Enter a valid date."
+      },
+      {
+        "field": "number_of_vehicles",
+        "message": "Enter a whole number from 1 to 30."
+      }
+    ]
+  }
+}

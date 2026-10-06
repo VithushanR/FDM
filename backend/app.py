@@ -1,5 +1,6 @@
 """FastAPI app. Run from the repo root with: uvicorn backend.app:app --reload"""
 
+import contextlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from .routers import about, classification, hotspots
 from .schemas.about import AboutFileError, load_about
 from .schemas.common import ApiValidationError
 from .services.coverage_service import CoverageService
-from .services.hotspot_service import HotspotService
+from .services.hotspot_service import HotspotService, HotspotUnavailable
 from .services.model_service import ModelService
 
 
@@ -65,6 +66,9 @@ def create_app(
         # The services never raise on a bad file. They store the problem and the routers report it.
         app.state.model = ModelService(resolved_model, config, CODE_LABELS_PATH)
         app.state.hotspots = HotspotService(resolved_hotspots)
+        # Read the hotspot file at startup. A bad file is reported as a 503 by the endpoints, never a failed start.
+        with contextlib.suppress(HotspotUnavailable):
+            app.state.hotspots.load()
         app.state.coverage = CoverageService(resolved_coverage, config.get("location", {}))
         try:
             app.state.about = load_about(resolved_about)

@@ -1,0 +1,137 @@
+.signOuter {
+  background: #0a3f86;
+  border-radius: 30px;
+  padding: 10px;
+  color: #fff;
+}
+
+.signInner {
+  border: 2px solid #fff;
+  border-radius: 20px;
+  padding: 28px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px 44px;
+}
+
+.verdict {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 104px;
+  line-height: 0.95;
+  margin: 4px 0;
+}
+
+.scale {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+
+.segment {
+  flex: 1;
+  min-width: 90px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.segmentActive {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.bar {
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 90px 1fr 56px;
+  gap: 10px;
+  align-items: center;
+  margin: 6px 0;
+  font-size: 15px;
+}
+
+.footer {
+  flex-basis: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  padding-top: 14px;
+  font-size: 14px;
+}
+
+.onDark {
+  color: #fff;
+}
+
+.reportToolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.tray {
+  background: var(--page);
+  padding: 28px;
+  border-radius: 20px;
+}
+
+.paper {
+  max-width: 880px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #d2d8de;
+  border-radius: 8px;
+  padding: 44px 52px;
+  box-shadow: 0 10px 30px -18px rgba(16, 27, 38, 0.3);
+}
+
+.paperHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid var(--blue);
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+}
+
+.reportH2 {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 22px;
+  color: var(--blue);
+  margin: 18px 0 8px;
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 15px;
+}
+
+.dl dt {
+  font-weight: 700;
+}
+
+.dl dd {
+  margin: 0;
+}

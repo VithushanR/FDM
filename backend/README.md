@@ -176,48 +176,51 @@ Missing or out-of-range coordinates return 422 in the usual `{"errors": [...]}` 
 
 ### Hotspots
 
-`results/spatial_temporal/hotspots.json` comes from `notebooks/spatial_temporal/spatial_temporal_hotspots.ipynb`. The method is HDBSCAN on OSGR metres, in 25 km tiles with a 2 km overlap. A hotspot is a cluster whose 90th-percentile radius from its centre is at most 500 m. Up to 1,000 hotspots are kept per subset and time slice. The file has 11,030 hotspots, which cover about 7.5% of all collisions and about 10.5% of Fatal and Serious collisions.
+`results/spatial_temporal/hotspots.json` is the hotspot file. Version 2 is the current format. Version 1 still loads, with the new features off. The profiles file `hotspot_profiles.json.gz` sits next to it and feeds the details and busiest time. The hotspot file comes from `notebooks/spatial_temporal/spatial_temporal_hotspots.ipynb`, as the project notes say. The profiles file has no recorded producer in this repo, so its source is to be confirmed.
 
-The `count` field in `/api/hotspots` is the number of hotspots returned, after `limit`. It is not the number that matched the filters.
+The data: HDBSCAN on OSGR metres in 25 km tiles with a 2 km overlap. A hotspot is a compact cluster whose 90th-percentile radius from its centre is at most 500 m. The file has 70,395 hotspots (52,646 All collisions, 17,749 Fatal and Serious). Each hotspot belongs to one view. An "All times" row has `month: null`, a time-of-day row has `month: null` with its slice name, and a month row has `month: 1..12` with slice "All times". A default request returns only `month: null` rows, so month rows never leak into the All times view.
+
+**Endpoints** (all under `/api/hotspots`):
+
+| Method and path | What it does |
+|---|---|
+| `GET /meta` | Generated time, method, parameters, the feature flags, months, persistence labels and rules, years, and hotspot counts per subset. |
+| `GET ?subset&slice&month&persistence&bbox&sort&min_collisions&limit` | The list. `limit` defaults to 200 and goes up to 1,000. Returns `count`, `total_matched` (everything that matches, before `limit`) and `truncated` (`total_matched > count`). |
+| `GET /nearby?latitude&longitude&radius_m&subset&slice&month&min_collisions&limit` | Hotspots whose CENTRE is within `radius_m` (50 to 2,000 m) of the point, nearest first, then most collisions. Each item has `distance_m` and `busiest_time` (null without profiles). `limit` is 1 to 50, default 10. |
+| `GET /{id}` | One hotspot with its profile: `years`, `months`, `time_of_day`, `shares` (each with `here_pct` and `gb_pct`) and `persistence`. Unknown id: 404 `{"detail": "No hotspot with id N."}`. |
+| `POST /along-route` | Body: `{"path": [[lat, lng], ...], "buffer_m": 200, "subset", "slice", "month", "min_collisions", "persistence"}`. Two to 2,000 points, buffer 50 to 1,000 m. A hotspot is returned when its centre is within the buffer of the path. Returns `length_km`, `count`, `truncated`, `hotspots` (ordered by `km_from_start`, at most 5,000) and a `summary` with `hotspots`, `collisions`, `fatal` and `per_10_km`. |
+
+**Filters.** `subset` is `all` or `severe` (Fatal and Serious only). `slice` is "All times" or a time of day. `month` (1 to 12) needs slice "All times". `persistence` is `any`, `persistent`, `recent`, `fading`, `mixed` or `too_few`. `bbox` is `west,south,east,north` in degrees, and the edges are inclusive. `sort` is `collisions` (default), `fatal` or `share` (Fatal and Serious as a share of collisions). Ties go to more collisions, then the lower id.
+
+**Persistence labels** are set in this order: "Too few to judge" for fewer than 8 collisions, then "Persistent" for collisions in at least 4 of the 5 years, then "Recent" for at least 60% of collisions in 2024 and 2025, then "Fading" for at least 60% in 2021 and 2022, otherwise "Mixed". The real file applies "Persistent" before "Recent": 2,484 hotspots meet both and are labelled Persistent.
+
+**Example** (PowerShell):
 
 ```powershell
-# Filters: subset (all | severe), slice, min_collisions, limit (max 1000)
-Invoke-RestMethod "http://127.0.0.1:8000/api/hotspots?subset=severe&slice=Evening%20Rush&min_collisions=10&limit=200"
-Invoke-RestMethod http://127.0.0.1:8000/api/hotspots/meta
+Invoke-RestMethod "http://127.0.0.1:8000/api/hotspots?subset=severe&slice=Evening%20Rush&limit=3"
+Invoke-RestMethod "http://127.0.0.1:8000/api/hotspots?subset=all&bbox=-0.3,51.4,0.1,51.6&sort=fatal&limit=20"
+$route = @{ path = @(@(51.50, -0.20), @(51.52, -0.10)); buffer_m = 200; subset = "all" } | ConvertTo-Json -Depth 4
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/hotspots/along-route -Method Post -ContentType "application/json" -Body $route
 ```
 
-If the file is missing, both return 503 with `{"available": false, "message": "Hotspot analysis has not been generated yet."}`. A malformed file returns 503 with the same shape and a message that names the problem.
+**Unavailable data.** A missing hotspot file gives 503 `{"available": false, "message": "Hotspot analysis has not been generated yet."}` on every endpoint. A missing profiles file gives the same 503 on the details endpoint only: nearby still works, with `busiest_time` null, and `features.details` is false. A corrupt file gives 503 with the problem named. A version 1 file gives `features` all false, and the new parameters and endpoints return 422 `not available in this data file`.
 
-Check a file before the app reads it:
+**Validation.** A bad request returns 422 `{"errors": [{"field", "message"}]}` with every problem at once. `tools/validate_hotspots.py <file>` checks a file against every rule, and checks the profiles next to it. `tools/check_hotspots_real.py` runs a smoke test against a running backend.
 
-```powershell
-.\.venv\Scripts\python.exe tools\validate_hotspots.py results\spatial_temporal\hotspots.json
-```
-
-The file contract:
+**Hotspot file (version 2)**, one row per hotspot:
 
 ```json
-{
-  "version": 1,
-  "generated_at": "2026-01-01T12:00:00+00:00",
-  "method": "DBSCAN",
-  "parameters": {"eps_m": 200, "min_samples": 10},
-  "subsets": ["all", "severe"],
-  "slices": ["All times", "Night", "Morning Rush", "Midday", "Evening Rush", "Evening"],
-  "hotspots": [
-    {"id": 1, "subset": "severe", "slice": "Evening Rush", "latitude": 51.5, "longitude": -0.12,
-     "radius_m": 180, "collisions": 42, "fatal": 1, "serious": 14, "slight": 0, "label": null}
-  ]
-}
+{"id": 9031, "subset": "severe", "slice": "Evening Rush", "month": null,
+ "latitude": 51.514775, "longitude": -0.141966, "radius_m": 280,
+ "collisions": 18, "fatal": 0, "serious": 18, "slight": 0,
+ "label": "LSOA E01033595", "years_present": 4, "persistence": "Persistent"}
 ```
 
-- `collisions` must equal `fatal + serious + slight`.
-- Coordinates must be inside the UK bounds used by the form.
-- `subset` and `slice` must appear in the file's `subsets` and `slices`.
-- A `severe` hotspot counts Fatal and Serious only, so its `slight` must be 0.
-- Ids must be unique.
+Top level: `version` (2), `generated_at`, `method`, `parameters` (including `persistence_rules`), `subsets`, `slices`, `months`, `persistence_labels` and `features`. `label` is null for areas with no recorded LSOA, such as Scotland.
 
-For a sample file for trying the endpoints, see `tools/make_sample_hotspots.py`. It writes to a path you give it. It refuses the real path unless you pass `--force`.
+**Profile file (version 2)**, `hotspot_profiles.json.gz`: `years` (2021 to 2025), `months` (1 to 12), `time_slices` (the five time-of-day names), `share_keys` and `share_labels` (eight each), `baseline_pct` (for `all` and `severe`), and `profiles`, keyed by hotspot id. Each profile holds `y` (5 years), `m` (12 months), `t` (5 time slices) and `s` (8 share counts). `y`, `m` and `t` each add up to the hotspot's collisions. `s[i]` counts the collisions with `share_keys[i]`, so it is 0 to collisions and the eight values can add up to more than the total.
+
+**Performance** (measured on the real files, with the test client): startup, with the hotspot file loaded, 0.67 s. The first details call, which loads the profiles, about 0.96 s. The list p95 is 11 ms, the bbox list p95 22 ms, nearby p95 3.4 ms, details p95 2 ms, and the along-route call with 500 points p95 44 ms.
 
 ## Serving the React build
 
@@ -261,3 +264,9 @@ Evidence from `tools/show_model_input.py` run on the real model (`models/rf_clas
 - The rule that a `severe` hotspot has `slight` = 0 follows from the definition of "severe". It is enforced by the file check. Confirm it matches the clustering notebook.
 - The name of the true severity column in the test CSV. The default is `collision_severity`. Pass `--target` if it differs.
 - Placeholders for the date and time inputs (`yyyy-mm-dd`, `HH:MM`), and the help text for the vehicle field, were chosen by the backend, not given in the brief.
+- The source of the profiles file (`hotspot_profiles.json.gz`). Only the file itself is in the repo.
+- The persistence order. The real file applies "Persistent" before "Recent". The spec's rule list does not give an order, so this is taken from the data.
+- Route checks accept only points inside the Great Britain box (latitudes 49 to 61, longitudes -9 to 2.5), because the data covers Great Britain only. A route that crosses the sea to France is refused.
+- On a version 1 file the `sort` parameter still works, because it needs only the counts, which version 1 has. The month, persistence and bbox parameters, and nearby, details and along-route, give 422.
+- `per_10_km` in the route summary is the collisions in the matched hotspots, divided by the route length in tens of kilometres. It is not a rate per traffic volume, which the data does not have.
+

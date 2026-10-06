@@ -1,0 +1,179 @@
+.frame {
+  background: var(--card);
+  border: 1.5px solid var(--frame-outer);
+  border-radius: 30px;
+  padding: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+.frameInner {
+  border: 1px solid var(--frame-inner);
+  border-radius: 22px;
+  height: 100%;
+}
+
+.cardTitle {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.1;
+  margin: 0 0 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.control {
+  height: 40px;
+  border-radius: 12px;
+  border: 1.5px solid var(--control-border);
+  background: #fff;
+  padding: 0 12px;
+  font-size: 15px;
+  width: 100%;
+  min-width: 0;
+}
+
+.controlInvalid {
+  border-color: var(--error-border);
+}
+
+.helper {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.errorText {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--error-border);
+}
+
+.btnPrimary,
+.btnSecondary,
+.btnLink {
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.btnPrimary {
+  background: var(--ink);
+  color: #fff;
+  border: 0;
+  border-radius: 16px;
+  height: 52px;
+  padding: 0 36px;
+  font-size: 17px;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.btnSecondary {
+  background: #fff;
+  border: 1.5px solid var(--blue);
+  color: var(--blue);
+  border-radius: 14px;
+  height: 44px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+.btnLink {
+  background: none;
+  border: 0;
+  color: var(--blue);
+  text-decoration: underline;
+  padding: 0 4px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--control-border);
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.chip input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.chipChecked {
+  background: var(--selected-tint);
+  border-color: var(--blue);
+}
+
+.statusBox {
+  border-radius: 12px;
+  border: 1.5px solid;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+.statusTitle {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+
+.statusOk {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+
+.statusWarn {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.statusError {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.statusMuted {
+  border-color: var(--hairline);
+  background: #fff;
+  color: var(--muted);
+}
+
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}

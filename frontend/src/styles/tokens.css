@@ -1,0 +1,33 @@
+:root {
+  --page: #edf0f2;
+  --card: #fbfcfc;
+  --ink: #101b26;
+  --muted: #4f5b67;
+  --control-border: #7a8794;
+  --hairline: #e1e6ea;
+  --blue: #0a3f86;
+  --selected-tint: #dce7f6;
+  --selected-row: #f2f6fb;
+  --frame-outer: #b9c7da;
+  --frame-inner: #dce3ec;
+
+  --error-border: #a61e19;
+  --error-bg: #fbedec;
+  --error-text: #7a1410;
+  --ok-border: #1f7a5c;
+  --ok-bg: #e9f4ef;
+  --ok-text: #124a37;
+  --ok-check: #1f6b50;
+  --warn-border: #9a5b00;
+  --warn-bg: #fbf3e4;
+  --warn-text: #5f3a00;
+
+  --sev-slight: #a7e3ce;
+  --sev-serious: #f5b71f;
+  --sev-fatal: #ff8f85;
+
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --font-head: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --shadow-card: 0 1px 2px rgba(16, 27, 38, 0.05), 0 18px 40px -14px rgba(16, 27, 38, 0.18);
+  --focus: 3px solid var(--blue);
+}

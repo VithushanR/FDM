@@ -1,0 +1,32 @@
+{
+  "status": 200,
+  "body": {
+    "severity_code": 2,
+    "severity": "Serious",
+    "scores": {
+      "Fatal": 0.2762,
+      "Serious": 0.4816,
+      "Slight": 0.2423
+    },
+    "adjusted_scores": {
+      "Fatal": 0.4142,
+      "Serious": 0.4816,
+      "Slight": 0.2423
+    },
+    "score_kind": "probability",
+    "fatal_adjust": 1.5,
+    "adjust_mode": "multiply",
+    "adjustment_note": "The Fatal probability is multiplied by 1.5 before the result is chosen, so more Fatal collisions are caught.",
+    "left_blank": [
+      "Road class",
+      "Junction control",
+      "Pedestrian crossing",
+      "Special site conditions",
+      "Hazard on the carriageway",
+      "Latitude",
+      "Longitude"
+    ],
+    "warnings": [],
+    "location": null
+  }
+}

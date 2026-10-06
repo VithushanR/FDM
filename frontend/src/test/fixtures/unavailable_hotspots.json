@@ -1,0 +1,8 @@
+{
+  "status": 503,
+  "body": {
+    "available": false,
+    "message": "Hotspot analysis has not been generated yet."
+  },
+  "captured": "in-process, real app code, with the named file missing or damaged"
+}

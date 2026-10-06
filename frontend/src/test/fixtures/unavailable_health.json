@@ -1,0 +1,8 @@
+{
+  "status": 503,
+  "body": {
+    "status": "error",
+    "error": "Model file not found at C:\\Users\\ACER\\AppData\\Local\\Temp\\tmp_ychsv07\\missing_model.joblib. Copy rf_classifier_pipeline.joblib into models/ or set MODEL_PATH."
+  },
+  "captured": "in-process, real app code, with the named file missing or damaged"
+}
