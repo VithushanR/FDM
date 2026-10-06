@@ -24,7 +24,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 from .features import (
     CATEGORICAL_COLUMNS, DAY_OF_WEEK_VALUES, FORM_FIELDS, LEAKAGE_COLUMNS, LEAKAGE_PATTERN, MAX_AGE,
-    MODEL_COLUMNS, OPTIONAL_ENCODING, SEASONS, TIME_BUCKETS, FieldSpec, build_row, normalise_code,
+    GROUP_WIDGETS, MODEL_COLUMNS, OPTIONAL_ENCODING, SEASONS, TIME_BUCKETS, FieldSpec, build_row, normalise_code,
     parse_date, parse_time,
 )
 
@@ -492,7 +492,7 @@ class ModelService:
         groups: list[dict[str, Any]] = []
         for spec in self.fields:
             if not groups or groups[-1]["title"] != spec.group:
-                groups.append({"title": spec.group, "fields": []})
+                groups.append({"title": spec.group, "fields": [], "widget": GROUP_WIDGETS.get(spec.group)})
             groups[-1]["fields"].append({
                 "name": spec.name,
                 "label": spec.label,

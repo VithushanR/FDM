@@ -1,5 +1,6 @@
 """Request parsing and response shapes for the classification endpoints."""
 
+import math
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, TypeAdapter, ValidationError
@@ -40,6 +41,7 @@ FRIENDLY_TYPE_ERRORS = {
     "multicheck": BAD_OPTION,
 }
 _ADAPTERS = {spec.name: (TypeAdapter(KIND_TYPES[spec.kind]), spec.kind) for spec in FORM_FIELDS}
+_ADAPTERS_LOCATION = TypeAdapter(Decimal)
 
 
 def parse_form(raw: Any) -> tuple[dict[str, Any], dict[str, str]]:
@@ -56,11 +58,55 @@ def parse_form(raw: Any) -> tuple[dict[str, Any], dict[str, str]]:
     return values, errors
 
 
+def location_range_errors(latitude: float | None, longitude: float | None) -> dict[str, str]:
+    """The numeric range check, so a point outside the UK box is refused before the coverage check runs."""
+    errors: dict[str, str] = {}
+    specs = {spec.name: spec for spec in FORM_FIELDS if spec.name in ("latitude", "longitude")}
+    for name, value in (("latitude", latitude), ("longitude", longitude)):
+        if value is None:
+            continue
+        spec = specs[name]
+        if not math.isfinite(value) or not spec.min <= value <= spec.max:
+            errors[name] = f"Enter a number from {spec.min:g} to {spec.max:g}."
+    return errors
+
+
+def parse_location(raw: Any) -> tuple[float | None, float | None, dict[str, str]]:
+    """Body of POST /api/location/check: both numbers are required and must be inside the box."""
+    if not isinstance(raw, dict):
+        return None, None, {"body": "Send the location as a JSON object."}
+    values, errors = {}, {}
+    for name in ("latitude", "longitude"):
+        if raw.get(name) is None:
+            errors[name] = "This field is required."
+            continue
+        try:
+            values[name] = _ADAPTERS_LOCATION.validate_python(raw[name])
+        except ValidationError:
+            errors[name] = FRIENDLY_TYPE_ERRORS["decimal"]
+    if not errors:
+        errors.update(location_range_errors(values["latitude"], values["longitude"]))
+    return values.get("latitude"), values.get("longitude"), errors
+
+
 class HealthOk(BaseModel):
     status: Literal["ok"]
     model: str
     demo: bool
     warnings: list[str]
+    coverage_grid: str
+
+
+class LocationOut(BaseModel):
+    status: Literal["covered", "sparse", "outside", "unchecked"]
+    nearest_km: float | None
+
+
+class LocationCheckResponse(BaseModel):
+    status: Literal["covered", "sparse", "outside", "unchecked"]
+    nearest_km: float | None
+    message: str | None
+    allowed: bool
 
 
 class PredictResponse(BaseModel):
@@ -73,6 +119,8 @@ class PredictResponse(BaseModel):
     adjust_mode: str
     adjustment_note: str
     left_blank: list[str]
+    warnings: list[str]
+    location: LocationOut | None
 
 
 class FieldOption(BaseModel):
@@ -95,6 +143,7 @@ class FormField(BaseModel):
 class FormGroup(BaseModel):
     title: str
     fields: list[FormField]
+    widget: str | None = None
 
 
 class SchemaResponse(BaseModel):

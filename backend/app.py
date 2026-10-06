@@ -6,14 +6,16 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 
 from .config import (
-    CODE_LABELS_PATH, FRONTEND_DIR, cors_origins, load_model_config, resolve_hotspot_path, resolve_model_path,
+    ABOUT_PATH, CODE_LABELS_PATH, COVERAGE_GRID_PATH, FRONTEND_DIR, cors_origins, load_model_config,
+    resolve_hotspot_path, resolve_model_path,
 )
-from .routers import classification, hotspots
+from .routers import about, classification, hotspots
+from .schemas.about import AboutFileError, load_about
 from .schemas.common import ApiValidationError
+from .services.coverage_service import CoverageService
 from .services.hotspot_service import HotspotService
 from .services.model_service import ModelService
 
@@ -35,17 +37,41 @@ def _friendly_request_error(error: dict) -> dict:
     return {"field": field, "message": message}
 
 
-def create_app(model_path=None, hotspot_path=None, config_path=None) -> FastAPI:
+def _static_root(frontend_root: Path) -> Path | None:
+    """frontend/dist if it has a built index.html, else frontend/ if it has one, else nothing."""
+    for candidate in (frontend_root / "dist", frontend_root):
+        if (candidate / "index.html").exists():
+            return candidate
+    return None
+
+
+def create_app(
+    model_path=None,
+    hotspot_path=None,
+    config_path=None,
+    about_path=None,
+    coverage_path=None,
+    frontend_root=None,
+) -> FastAPI:
     """Explicit arguments override environment variables, which override model_config.json."""
     config = load_model_config(Path(config_path) if config_path else None)
     resolved_model = resolve_model_path(config, model_path)
     resolved_hotspots = resolve_hotspot_path(hotspot_path)
+    resolved_about = Path(about_path) if about_path else ABOUT_PATH
+    resolved_coverage = Path(coverage_path) if coverage_path else COVERAGE_GRID_PATH
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # The services never raise on a bad file. They store the problem and the routers report it as 503.
+        # The services never raise on a bad file. They store the problem and the routers report it.
         app.state.model = ModelService(resolved_model, config, CODE_LABELS_PATH)
         app.state.hotspots = HotspotService(resolved_hotspots)
+        app.state.coverage = CoverageService(resolved_coverage, config.get("location", {}))
+        try:
+            app.state.about = load_about(resolved_about)
+            app.state.about_error = None
+        except AboutFileError as exc:
+            app.state.about = None
+            app.state.about_error = str(exc)
         yield
 
     app = FastAPI(title="FDM collision severity API", lifespan=lifespan)
@@ -67,10 +93,22 @@ def create_app(model_path=None, hotspot_path=None, config_path=None) -> FastAPI:
 
     app.include_router(classification.router)
     app.include_router(hotspots.router)
+    app.include_router(about.router)
 
-    # Mounted last so the API routes above take priority over the static files.
-    if (FRONTEND_DIR / "index.html").exists():
-        app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+    # Registered last, so every API route above is matched first.
+    static_root = _static_root(Path(frontend_root) if frontend_root else FRONTEND_DIR)
+    if static_root is not None:
+        root = static_root.resolve()
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def frontend(full_path: str):
+            if full_path == "api" or full_path.startswith("api/"):
+                return JSONResponse(status_code=404, content={"detail": "Not Found"})
+            candidate = (root / full_path).resolve()
+            if full_path and candidate.is_file() and candidate.is_relative_to(root):
+                return FileResponse(candidate)
+            # Client-side routes such as /hotspots are answered by the app's own index.html.
+            return FileResponse(root / "index.html")
 
     return app
 

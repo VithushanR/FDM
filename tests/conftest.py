@@ -69,11 +69,15 @@ def write_config(tmp_path):
 @pytest.fixture
 def make_client(tmp_path):
     """Starts the app (which runs the lifespan) and yields a client. Missing hotspot file unless one is given."""
-    def start(model_path, config_path=None, hotspot_path=None):
+    def start(model_path, config_path=None, hotspot_path=None, coverage_path=None, about_path=None, frontend_root=None):
+        # No coverage grid unless one is given, so tests do not depend on a grid built on this machine.
         app = create_app(
             model_path=model_path,
             config_path=config_path,
             hotspot_path=hotspot_path or tmp_path / "no_hotspots_here.json",
+            coverage_path=coverage_path or tmp_path / "no_coverage_grid_here.npz",
+            about_path=about_path,
+            frontend_root=frontend_root or tmp_path / "no_frontend_here",
         )
         return TestClient(app)
     return start

@@ -12,6 +12,9 @@ FRONTEND_DIR = ROOT / "frontend"
 MODEL_CONFIG_PATH = RESOURCES_DIR / "model_config.json"
 CODE_LABELS_PATH = RESOURCES_DIR / "code_labels.json"
 DEFAULT_HOTSPOT_PATH = ROOT / "results" / "spatial_temporal" / "hotspots.json"
+ABOUT_PATH = RESOURCES_DIR / "about.json"
+COVERAGE_GRID_PATH = RESOURCES_DIR / "gb_coverage.npz"
+FRONTEND_DIST_DIR = FRONTEND_DIR / "dist"
 
 
 def load_model_config(path: Path | None = None) -> dict:

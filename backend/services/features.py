@@ -127,6 +127,9 @@ FORM_FIELDS: tuple[FieldSpec, ...] = (
               help="Decimal degrees, for example -0.1276."),
 )
 
+# Groups that the frontend draws with a special control, e.g. a map picker for Location.
+GROUP_WIDGETS = {LOCATION: "location"}
+
 CATEGORY_FIELDS = tuple(f.name for f in FORM_FIELDS if f.kind == "select" and f.dynamic_options)
 
 

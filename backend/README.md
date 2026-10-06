@@ -131,6 +131,49 @@ Rules applied to the form:
 - The number of vehicles must be at least the number of vehicle types ticked, and there can be at most one driver age per vehicle.
 - Fields the loaded model does not use are hidden, and they are not validated.
 
+### Location coverage
+
+The Location fields are checked against a coverage grid, so that a point in Ireland or far from the collision data is flagged. The old box (latitude 49 to 61, longitude -9 to 2.5) also covers Ireland and Northern Ireland, which are not in the data.
+
+**Build the grid** from a collision CSV (only the `latitude` and `longitude` columns are read):
+
+```powershell
+.\.venv\Scripts\python.exe tools\build_coverage_grid.py <collisions.csv>
+# optional: --out backend\resources\gb_coverage.npz --cell 0.01
+```
+
+The tool drops blank coordinates and points outside the box, bins the rest into cells of `--cell` degrees (default 0.01, about 1.1 km by 0.65 km at this latitude), and stores the centre of each occupied cell. It prints the rows used and dropped, the occupied cells, and the file size. Restart the server after building the grid.
+
+**Thresholds** are in `backend/resources/model_config.json` under `location`: `sparse_km` (default 3) and `outside_km` (default 10). The distance is the great-circle distance to the nearest occupied cell centre, measured with a haversine BallTree. Because cells are about 1.1 km by 0.65 km, the distance is accurate to roughly 0.7 km.
+
+| Status | Distance | Effect |
+|---|---|---|
+| `covered` | up to `sparse_km` | none |
+| `sparse` | over `sparse_km`, up to `outside_km` | a warning on predict |
+| `outside` | over `outside_km` | a 422 error on `latitude` on predict; `allowed` is false |
+| `unchecked` | no grid built, point inside the box | none |
+
+With no grid, the app still starts. Points inside the box are `unchecked`, and points outside it are `outside`. `/api/health` warns: "Coverage grid not built: locations are checked against a coarse box that includes Ireland and Northern Ireland." It also reports `coverage_grid` as `missing` (or `loaded (N cells)` when the grid is present).
+
+**Check one location:**
+
+```powershell
+$loc = @{ latitude = 51.5072; longitude = -0.1276 } | ConvertTo-Json
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/location/check -Method Post -ContentType "application/json" -Body $loc
+```
+
+```json
+{"status": "covered", "nearest_km": 0.0, "message": null, "allowed": true}
+```
+
+Missing or out-of-range coordinates return 422 in the usual `{"errors": [...]}` shape.
+
+**Predict** runs the same check when both latitude and longitude are given. Its response always has `warnings` (a list, empty when there is nothing to report) and `location` (`{"status", "nearest_km"}`, or `null` when no location was given). An outside point is refused with a 422 on `latitude`, collected with any other errors. A sparse point returns 200 with the message in `warnings`.
+
+### About
+
+`GET /api/about` returns `backend/resources/about.json`: the model, the data source and licence, the test results with the confusion matrix, and the limits. At startup the file is checked: each confusion-matrix row must sum to its class support, and the splits must sum to the collision count. If the check fails, the endpoint returns 503 and names the problem.
+
 ### Hotspots
 
 `results/spatial_temporal/hotspots.json` comes from `notebooks/spatial_temporal/spatial_temporal_hotspots.ipynb`. The method is HDBSCAN on OSGR metres, in 25 km tiles with a 2 km overlap. A hotspot is a cluster whose 90th-percentile radius from its centre is at most 500 m. Up to 1,000 hotspots are kept per subset and time slice. The file has 11,030 hotspots, which cover about 7.5% of all collisions and about 10.5% of Fatal and Serious collisions.
@@ -176,6 +219,12 @@ The file contract:
 
 For a sample file for trying the endpoints, see `tools/make_sample_hotspots.py`. It writes to a path you give it. It refuses the real path unless you pass `--force`.
 
+## Serving the React build
+
+If `frontend/dist/index.html` exists, the app serves `frontend/dist`. Otherwise it serves `frontend/` when `frontend/index.html` exists. Otherwise it serves only the API. Real files are served as files. Any other GET path that does not start with `/api/` returns `index.html`, so client-side routes such as `/hotspots` and `/about` work on refresh. Unknown `/api/` paths return 404 with `{"detail": "Not Found"}`. Because the fallback is registered last, a GET to a POST-only endpoint such as `/api/predict` now returns that 404 instead of a 405.
+
+The Location group in `GET /api/schema` carries `"widget": "location"`, so the frontend can draw a map picker for latitude and longitude. The other groups carry `"widget": null`.
+
 ## Confirmed
 
 Evidence from `tools/show_model_input.py` run on the real model (`models/rf_classifier_pipeline.joblib`, no `MODEL_PATH` override):
@@ -188,6 +237,8 @@ Evidence from `tools/show_model_input.py` run on the real model (`models/rf_clas
 - **Hotspots:** `results/spatial_temporal/hotspots.json` passes `tools/validate_hotspots.py`. It contains 11,030 hotspots.
 
 ## Limits
+
+- Location coverage is only as complete as the collision locations. A remote spot in the Highlands may read as sparse or outside even when it is a valid place to ask about.
 
 - The model is a retrospective police-report tool. Do not describe it as a pre-collision risk score.
 - Test-set results, as supplied for this change: Fatal precision 7.28%, recall 40.16%; Serious precision 34.41%, recall 45.77%; Slight precision 84.20%, recall 68.49%; macro F1 42.38%. Most Fatal flags are false alarms: only about 7 in 100 flagged collisions are actually Fatal. Recall is also low, so many real Fatal collisions are missed. The 1.5 weight adds Fatal flags, so the false-alarm share is high.
@@ -204,6 +255,9 @@ Evidence from `tools/show_model_input.py` run on the real model (`models/rf_clas
 - The training file set. The training notes give 113 columns after preprocessing for the older notebook and 117 for the current one, from the same 36 features. Check which files the saved model was trained on. The app reads categories from the saved file, so it shows what the model learned. A code present in new data but missing from an old model is silently zeroed.
 - `has_undocumented_code_33` is always 0 in the form, but it is 1 for 1.3% of training rows. Collisions with that code cannot be entered, so the model receives 0 for them.
 - The wording for the trunk options. The codes are confirmed (see Confirmed). `code_labels.json` labels code 1 "Trunk (Roads managed by Highways England)" and code 2 "Non-trunk". The flag options use "Trunk road" and "Non-trunk road", as requested. Choose one wording.
+- The 3 km and 10 km coverage thresholds are untested guesses. Check them with real pins before relying on the sparse and outside statuses.
+- The coverage grid is only as complete as the collision locations, so a remote Highland spot may read as sparse or outside. Confirm this with real pins.
+- Whether a location is checked when the model does not use the Location fields (for example, the pre-collision model). The app checks any point where both coordinates are given.
 - The rule that a `severe` hotspot has `slight` = 0 follows from the definition of "severe". It is enforced by the file check. Confirm it matches the clustering notebook.
 - The name of the true severity column in the test CSV. The default is `collision_severity`. Pass `--target` if it differs.
 - Placeholders for the date and time inputs (`yyyy-mm-dd`, `HH:MM`), and the help text for the vehicle field, were chosen by the backend, not given in the brief.

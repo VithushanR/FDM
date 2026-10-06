@@ -38,5 +38,9 @@
         "recall": 0.6849
       }
     }
+  },
+  "location": {
+    "sparse_km": 3,
+    "outside_km": 10
   }
 }
