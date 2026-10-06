@@ -31,6 +31,28 @@
   min-width: 0;
 }
 
+/* A form field in a grid. It takes two of the parent's rows through subgrid: the label row and the
+   control row. Every label in a row shares one height, so the controls line up when a label wraps. */
+.gridField {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 6px;
+  min-width: 0;
+}
+
+.gridField > .label {
+  align-self: end;
+}
+
+/* The control with its helper and error text below it. */
+.fieldBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
 .label {
   font-size: 13.5px;
   font-weight: 700;

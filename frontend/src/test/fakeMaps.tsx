@@ -43,7 +43,7 @@ export const SCOTLAND_VIEW: ViewState = {
 };
 
 // Stands in for the Google hotspot map. It reports GB on load, and exposes the selection and routes for assertions.
-export function FakeHotspotCanvas({ hotspots, selectedId, routes, onViewChange, onSelect }: HotspotCanvasProps) {
+export function FakeHotspotCanvas({ hotspots, selectedId, target, routes, onViewChange, onSelect, onClearSelection }: HotspotCanvasProps) {
   useEffect(() => {
     onViewChange(GB_VIEW);
   }, [onViewChange]);
@@ -52,12 +52,16 @@ export function FakeHotspotCanvas({ hotspots, selectedId, routes, onViewChange, 
       data-testid="fake-hotspot-canvas"
       data-count={hotspots.length}
       data-selected={selectedId ?? ""}
+      data-target={target ? `${target.center.lat},${target.center.lng},${target.zoom}` : ""}
       data-routes={routes.map((route) => `${route.letter}${route.selected ? "*" : ""}`).join(",")}
     >
       <button type="button" onClick={() => {
         onViewChange(SCOTLAND_VIEW);
       }}>
         View Scotland
+      </button>
+      <button type="button" onClick={onClearSelection}>
+        Click empty map
       </button>
       {hotspots.slice(0, 3).map((hotspot) => (
         <button key={hotspot.id} type="button" onClick={() => {

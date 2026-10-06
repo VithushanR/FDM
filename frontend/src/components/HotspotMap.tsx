@@ -6,6 +6,7 @@ import { hotspotLabel, SMALL_ZOOM_LIMIT } from "../state/hotspotState";
 import { PlaceSearchBox } from "./PlaceSearchBox";
 import { StatusBox } from "./StatusBox";
 import styles from "./hotspots.module.css";
+import ui from "./ui.module.css";
 
 export const INITIAL_CENTER: LatLng = { lat: 54.5, lng: -3 };
 export const INITIAL_ZOOM = 6;
@@ -25,9 +26,12 @@ interface Props {
   smallZoomNote: boolean;
   onViewChange: (view: ViewState) => void;
   onSelect: (id: number) => void;
+  onClearSelection: () => void;
   onHover: (id: number | null) => void;
   onZoom: (delta: number) => void;
   onPlace: (point: LatLng, name: string) => void;
+  // Set after a selection has zoomed the map in. Returns to the view from before.
+  onBack: (() => void) | null;
 }
 
 export function HotspotMap(props: Props) {
@@ -51,6 +55,7 @@ export function HotspotMap(props: Props) {
           fitRoutes={props.fitRoutes}
           onViewChange={props.onViewChange}
           onSelect={props.onSelect}
+          onClearSelection={props.onClearSelection}
           onHover={props.onHover}
           onMap={setControls}
         />
@@ -115,9 +120,18 @@ export function HotspotMap(props: Props) {
         </div>
       </div>
 
-      {props.smallZoomNote ? (
-        <div className={`${styles.mapOverlay} ${styles.footerNote}`} role="note">
-          Showing the {SMALL_ZOOM_LIMIT} largest. Zoom in for more.
+      {props.onBack || props.smallZoomNote ? (
+        <div className={`${styles.mapOverlay} ${styles.bottomCentre}`}>
+          {props.onBack ? (
+            <button type="button" className={`${ui.btnSecondary} ${styles.backButton}`} onClick={props.onBack}>
+              ← Back to all hotspots
+            </button>
+          ) : null}
+          {props.smallZoomNote ? (
+            <div className={styles.footerNote} role="note">
+              Showing the {SMALL_ZOOM_LIMIT} largest. Zoom in for more.
+            </div>
+          ) : null}
         </div>
       ) : null}
 

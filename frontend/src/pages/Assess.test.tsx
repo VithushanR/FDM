@@ -304,7 +304,7 @@ describe("result", () => {
     await screen.findByRole("heading", { name: "Serious", level: 2 });
     const paper = document.querySelector(".report-paper") as HTMLElement;
     expect(within(paper).getByText("Collision severity assessment")).toBeInTheDocument();
-    expect(within(paper).getByText("4. Limits")).toBeInTheDocument();
+    expect(within(paper).getByText("5. Limits")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Print report" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save as PDF" })).toBeInTheDocument();
   });

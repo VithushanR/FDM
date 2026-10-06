@@ -16,16 +16,9 @@ interface Props {
   rules: Record<string, string> | null;
 }
 
+// Nothing is shown until a hotspot is selected. The list footer already says how to select one.
 export function DetailsCard({ hotspot, detailsOn, rules }: Props) {
-  if (!hotspot) {
-    return (
-      <Frame>
-        <div style={{ padding: "22px 26px", color: "var(--muted)" }}>
-          Select a hotspot on the map or in the list to see its details.
-        </div>
-      </Frame>
-    );
-  }
+  if (!hotspot) return null;
   return <SelectedDetails key={hotspot.id} hotspot={hotspot} detailsOn={detailsOn} rules={rules} />;
 }
 
@@ -70,7 +63,7 @@ function SelectedDetails({ hotspot, detailsOn, rules }: { hotspot: Hotspot; deta
   }, [hotspot, maps.geocoder]);
 
   const subsetText = hotspot.subset === "severe" ? "Fatal and Serious collisions" : "All collisions";
-  const sliceText = hotspot.month !== null ? `${monthName(hotspot.month)}` : hotspot.slice;
+  const sliceText = typeof hotspot.month === "number" ? monthName(hotspot.month) : hotspot.slice;
   return (
     <Frame>
       <section className={styles.details} style={{ padding: "22px 26px" }} aria-labelledby="details-heading">

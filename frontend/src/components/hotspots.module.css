@@ -195,10 +195,13 @@
   font-size: 14px;
 }
 
+/* Fills the card, so the list scrolls inside it instead of running past the bottom. */
 .sidePanel {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100%;
+  min-height: 0;
 }
 
 .tabs {
@@ -265,10 +268,93 @@
   font-variant-numeric: tabular-nums;
 }
 
-.footerNote {
+/* Hotspots along a route. The header stays in view while the side panel scrolls. */
+.routeTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.routeTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card);
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 6px;
+  border-bottom: 1.5px solid var(--hairline);
+  white-space: nowrap;
+}
+
+.routeTable td {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.routeTable .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.routeRow {
+  cursor: pointer;
+}
+
+.routeRow:hover td {
+  background: var(--selected-row);
+}
+
+.routeRowSelected td {
+  background: var(--selected-row);
+}
+
+.routeRowSelected td:first-child {
+  box-shadow: inset 3px 0 0 var(--blue);
+}
+
+.areaButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.routeRowSelected .areaButton {
+  font-weight: 700;
+}
+
+.areaButton:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Bottom centre of the map: the back button and the zoom note, stacked so they never overlap. */
+.bottomCentre {
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.backButton {
+  box-shadow: var(--shadow-card);
+  white-space: nowrap;
+}
+
+.footerNote {
   background: #fff;
   border-radius: 14px;
   padding: 8px 14px;

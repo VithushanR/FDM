@@ -35,6 +35,21 @@ function TargetPan({ target }: Pick<HotspotCanvasProps, "target">) {
   return null;
 }
 
+// A click on the map itself, not on a circle, clears the selection. Circle clicks do not reach the map.
+function ClearOnMapClick({ onClearSelection }: Pick<HotspotCanvasProps, "onClearSelection">) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    const listener = map.addListener("click", () => {
+      onClearSelection();
+    });
+    return () => {
+      listener.remove();
+    };
+  }, [map, onClearSelection]);
+  return null;
+}
+
 function HotspotMarkers({ hotspots, selectedId, onSelect, onHover }: Pick<HotspotCanvasProps, "hotspots" | "selectedId" | "onSelect" | "onHover">) {
   const map = useMap();
   const zoom = useZoom();
@@ -49,6 +64,7 @@ function HotspotMarkers({ hotspots, selectedId, onSelect, onHover }: Pick<Hotspo
 }
 
 // A white casing under the selected route, and grey lines for the others. Only the selected route is blue.
+// The selected route is drawn above the others, so it stays blue where the routes share a road.
 function RouteLines({ routes }: { routes: RouteOverlay[] }) {
   const map = useMap();
   useEffect(() => {
@@ -57,10 +73,10 @@ function RouteLines({ routes }: { routes: RouteOverlay[] }) {
     for (const route of routes) {
       const path = route.path.map((point) => ({ lat: point.lat, lng: point.lng }));
       if (route.selected) {
-        lines.push(new google.maps.Polyline({ map, path, strokeColor: "#FFFFFF", strokeWeight: 12, strokeOpacity: 1, clickable: false }));
-        lines.push(new google.maps.Polyline({ map, path, strokeColor: SELECTED_COLOUR, strokeWeight: 7, strokeOpacity: 1, clickable: false }));
+        lines.push(new google.maps.Polyline({ map, path, strokeColor: "#FFFFFF", strokeWeight: 12, strokeOpacity: 1, clickable: false, zIndex: 2 }));
+        lines.push(new google.maps.Polyline({ map, path, strokeColor: SELECTED_COLOUR, strokeWeight: 7, strokeOpacity: 1, clickable: false, zIndex: 3 }));
       } else {
-        lines.push(new google.maps.Polyline({ map, path, strokeColor: "#7A8794", strokeWeight: 6, strokeOpacity: 0.9, clickable: false }));
+        lines.push(new google.maps.Polyline({ map, path, strokeColor: "#7A8794", strokeWeight: 6, strokeOpacity: 0.9, clickable: false, zIndex: 1 }));
       }
     }
     return () => {
@@ -121,6 +137,7 @@ export function GoogleHotspotCanvas(props: HotspotCanvasProps) {
       <MapBridge onMap={props.onMap} />
       <ViewReporter onViewChange={props.onViewChange} />
       <TargetPan target={props.target} />
+      <ClearOnMapClick onClearSelection={props.onClearSelection} />
       <HotspotMarkers
         hotspots={props.hotspots}
         selectedId={props.selectedId}

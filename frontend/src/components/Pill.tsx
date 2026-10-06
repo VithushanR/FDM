@@ -7,7 +7,8 @@ const PILL: Record<string, { background: string; color: string }> = {
   "Too few to judge": { background: "#EDF0F2", color: "#4F5B67" },
 };
 
-export function Pill({ label }: { label: string | null | undefined }) {
+// The small size is for table cells.
+export function Pill({ label, small = false }: { label: string | null | undefined; small?: boolean }) {
   if (!label) return null;
   const colours = PILL[label] ?? { background: "#EDF0F2", color: "#2B3844" };
   return (
@@ -15,8 +16,9 @@ export function Pill({ label }: { label: string | null | undefined }) {
       style={{
         display: "inline-block",
         borderRadius: 999,
-        padding: "3px 10px",
-        fontSize: 13,
+        padding: small ? "2px 8px" : "3px 10px",
+        fontSize: small ? 12 : 13,
+        whiteSpace: "nowrap",
         fontWeight: 700,
         background: colours.background,
         color: colours.color,

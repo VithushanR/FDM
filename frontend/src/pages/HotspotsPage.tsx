@@ -34,6 +34,8 @@ const SHOW_MORE = 10;
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 18;
 const PLACE_ZOOM = 15;
+// Selecting a hotspot zooms to at least this level, close enough to see the streets.
+const SELECT_ZOOM = 14;
 const VIEW_DEBOUNCE_MS = 300;
 
 function parseId(text: string | null): number | null {
@@ -111,7 +113,11 @@ export function HotspotsPage() {
   const drawn = useMemo(() => drawnHotspots(inView, zoom), [inView, zoom]);
   const mapHotspots = routeHotspots !== null ? (routeHotspots as Hotspot[]) : drawn;
   const listItems = inView.slice(0, shown);
-  const selected = listHotspots.find((hotspot) => hotspot.id === selectedId) ?? null;
+  // A hotspot picked from the route table may not be in the list, so the drawn hotspots are checked too.
+  const selected =
+    listHotspots.find((hotspot) => hotspot.id === selectedId) ??
+    mapHotspots.find((hotspot) => hotspot.id === selectedId) ??
+    null;
   const hovered = listHotspots.find((hotspot) => hotspot.id === hoveredId) ?? null;
   const smallZoomNote = routeHotspots === null && zoom <= SMALL_ZOOM && drawn.length < inView.length;
 
@@ -129,13 +135,54 @@ export function HotspotsPage() {
     );
   }, []);
 
+  // The view from before a selection zoomed the map in, so the back button can return to it.
+  const [returnView, setReturnView] = useState<{ center: LatLng; zoom: number } | null>(null);
+
+  // The drawn hotspots and the view, read through a ref so onSelect stays stable and the markers are not redrawn.
+  const latest = useRef({ mapHotspots, zoom, center: view?.center ?? initial.center });
+  useEffect(() => {
+    latest.current = { mapHotspots, zoom, center: view?.center ?? initial.center };
+  });
+
+  // Selects a hotspot, from the list or the map, and flies the map to it.
   const onSelect = useCallback((id: number) => {
     navigateRef.current((previous) => {
       const updated = new URLSearchParams(previous);
       updated.set("id", String(id));
       return updated;
     });
+    const hotspot = latest.current.mapHotspots.find((item) => item.id === id);
+    if (hotspot) {
+      // Keep the first view only, so selecting several hotspots in a row still goes back to the wide view.
+      const { center, zoom: current } = latest.current;
+      setReturnView((previous) => previous ?? { center, zoom: current });
+      targetKey.current += 1;
+      setTarget({
+        center: { lat: hotspot.latitude, lng: hotspot.longitude },
+        zoom: Math.max(latest.current.zoom, SELECT_ZOOM),
+        key: targetKey.current,
+      });
+    }
   }, []);
+
+  // Clears the selection. The map stays where it is.
+  const onClearSelection = useCallback(() => {
+    navigateRef.current((previous) => {
+      if (!previous.has("id")) return previous;
+      const updated = new URLSearchParams(previous);
+      updated.delete("id");
+      return updated;
+    });
+  }, []);
+
+  // Clears the selection and returns the map to the view from before the selection.
+  const onBack = useCallback(() => {
+    if (!returnView) return;
+    onClearSelection();
+    targetKey.current += 1;
+    setTarget({ ...returnView, key: targetKey.current });
+    setReturnView(null);
+  }, [returnView, onClearSelection]);
 
   const onHover = useCallback((id: number | null) => {
     setHoveredId(id);
@@ -196,10 +243,26 @@ export function HotspotsPage() {
   }
 
   // After a selection, move focus to the details heading so keyboard and screen reader users land on it.
+  // It does not scroll, so the map stays in view while it flies to the hotspot.
   const hasSelection = selected !== null;
   useEffect(() => {
-    if (hasSelection) document.getElementById("details-heading")?.focus();
+    if (hasSelection) document.getElementById("details-heading")?.focus({ preventScroll: true });
   }, [selectedId, hasSelection]);
+
+  // Escape clears the selection, unless it is closing something in a text box or menu first.
+  useEffect(() => {
+    if (selectedId === null) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+      onClearSelection();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selectedId, onClearSelection]);
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -251,6 +314,8 @@ export function HotspotsPage() {
               smallZoomNote={smallZoomNote}
               onViewChange={onViewChange}
               onSelect={onSelect}
+              onClearSelection={onClearSelection}
+              onBack={returnView ? onBack : null}
               onHover={onHover}
               onZoom={onZoom}
               onPlace={onPlace}
@@ -295,6 +360,8 @@ export function HotspotsPage() {
               ) : (
                 <RouteCheck
                   filters={filters}
+                  selectedId={selectedId}
+                  onSelect={onSelect}
                   onOverlay={(overlays, hotspots) => {
                     setRouteOverlays(overlays);
                     setRouteHotspots(hotspots);

@@ -86,6 +86,8 @@ export interface HotspotCanvasProps {
   fitRoutes: boolean;
   onViewChange: (view: ViewState) => void;
   onSelect: (id: number) => void;
+  // A click on the map away from any circle.
+  onClearSelection: () => void;
   onHover: (id: number | null) => void;
   onMap?: (controls: MapControls) => void;
 }

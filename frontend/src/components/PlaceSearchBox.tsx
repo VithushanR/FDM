@@ -22,10 +22,18 @@ export function PlaceSearchBox({
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const token = useRef(newSessionToken());
+  // The text written into the box after a pick, so it does not trigger a new search.
+  const picked = useRef<string | null>(null);
   const listId = useId();
   const inputId = useId();
 
   useEffect(() => {
+    if (picked.current !== null && query === picked.current) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
+    picked.current = null;
     if (query.trim().length < 3) {
       setSuggestions([]);
       setOpen(false);
@@ -59,6 +67,7 @@ export function PlaceSearchBox({
     const place = await search.resolve(item.placeId, token.current).catch(() => null);
     token.current = newSessionToken();
     if (place) {
+      picked.current = place.name;
       setQuery(place.name);
       onPick(place.location, place.name);
     } else {

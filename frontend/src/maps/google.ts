@@ -38,9 +38,15 @@ export const googlePlaceSearch: PlaceSearch = {
 };
 
 // The Routes library types are not in @types/google.maps 3.58, so the shape used here is written out.
+// Route.path holds LatLngAltitude objects, where lat and lng are numbers, not methods.
+// LatLng (with methods) is accepted too, in case the library changes.
 interface RoutePoint {
-  lat(): number;
-  lng(): number;
+  lat: number | (() => number);
+  lng: number | (() => number);
+}
+
+function coord(value: number | (() => number)): number {
+  return typeof value === "function" ? value() : value;
 }
 interface RouteResult {
   path?: RoutePoint[];
@@ -68,7 +74,7 @@ export const googleRouteService: RouteService = {
       name: route.description || `Route ${String.fromCharCode(65 + index)}`,
       distanceM: route.distanceMeters ?? 0,
       durationS: (route.durationMillis ?? 0) / 1000,
-      path: (route.path ?? []).map((point) => ({ lat: point.lat(), lng: point.lng() })),
+      path: (route.path ?? []).map((point) => ({ lat: coord(point.lat), lng: coord(point.lng) })),
     }));
   },
 };

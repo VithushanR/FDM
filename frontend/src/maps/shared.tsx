@@ -53,7 +53,11 @@ export function useZoom(): number | null {
   return zoom;
 }
 
+// Opacity of the other circles while one is selected, so the selected one stands out.
+export const FADED_OPACITY = 0.3;
+
 // Circles drawn in screen pixels. The largest are added first, with the lowest z-index, so small ones stay clickable.
+// While a hotspot is selected, it is drawn on top and the others are faded.
 export function drawHotspotMarkers(
   map: google.maps.Map,
   hotspots: HotspotOut[],
@@ -63,6 +67,7 @@ export function drawHotspotMarkers(
   onHover: (id: number | null) => void,
 ): google.maps.Marker[] {
   const ordered = [...hotspots].sort((a, b) => b.collisions - a.collisions);
+  const anySelected = ordered.some((hotspot) => hotspot.id === selectedId);
   return ordered.map((hotspot, index) => {
     const colours = hotspot.fatal > 0 ? FATAL_COLOURS : SERIOUS_COLOURS;
     const selected = hotspot.id === selectedId;
@@ -70,7 +75,8 @@ export function drawHotspotMarkers(
       map,
       position: { lat: hotspot.latitude, lng: hotspot.longitude },
       clickable: true,
-      zIndex: index,
+      zIndex: selected ? ordered.length : index,
+      opacity: anySelected && !selected ? FADED_OPACITY : 1,
       title: `${hotspot.collisions} collisions`,
       icon: {
         path: google.maps.SymbolPath.CIRCLE,

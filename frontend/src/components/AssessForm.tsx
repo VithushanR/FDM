@@ -200,42 +200,46 @@ function VehicleChips({ field, span }: { field: FormField; span: number }) {
   const { state, dispatch } = useAssess();
   const error = state.errors["vehicles"];
   return (
-    <fieldset
-      className={styles.field}
-      style={{ gridColumn: `span ${span}`, border: 0, padding: 0, margin: 0, minWidth: 0 }}
-      aria-invalid={Boolean(error)}
+    // A group, not a fieldset: a legend cannot take part in the grid, and the label must sit on the label row.
+    <div
+      role="group"
+      className={styles.gridField}
+      style={{ gridColumn: `span ${span}` }}
+      aria-labelledby="vehicles-label"
       aria-describedby={error ? "vehicles-error" : undefined}
     >
-      <legend className={styles.label} style={{ marginBottom: 6 }}>
+      <span id="vehicles-label" className={styles.label}>
         {field.label} (tick all that apply)
-      </legend>
-      <div className={styles.chips}>
-        {field.options.map((option) => {
-          const checked = state.vehicles.includes(option.value);
-          return (
-            <label key={option.value} className={`${styles.chip} ${checked ? styles.chipChecked : ""}`}>
-              <input
-                id={`vehicles-${option.value}`}
-                type="checkbox"
-                checked={checked}
-                onChange={(event) => {
-                  const next = event.target.checked
-                    ? [...state.vehicles, option.value]
-                    : state.vehicles.filter((value) => value !== option.value);
-                  dispatch({ type: "setVehicles", vehicles: next });
-                }}
-              />
-              {option.label}
-            </label>
-          );
-        })}
+      </span>
+      <div className={styles.fieldBody}>
+        <div className={styles.chips}>
+          {field.options.map((option) => {
+            const checked = state.vehicles.includes(option.value);
+            return (
+              <label key={option.value} className={`${styles.chip} ${checked ? styles.chipChecked : ""}`}>
+                <input
+                  id={`vehicles-${option.value}`}
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                      ? [...state.vehicles, option.value]
+                      : state.vehicles.filter((value) => value !== option.value);
+                    dispatch({ type: "setVehicles", vehicles: next });
+                  }}
+                />
+                {option.label}
+              </label>
+            );
+          })}
+        </div>
+        {error ? (
+          <span id="vehicles-error" className={styles.errorText}>
+            {error}
+          </span>
+        ) : null}
       </div>
-      {error ? (
-        <span id="vehicles-error" className={styles.errorText}>
-          {error}
-        </span>
-      ) : null}
-    </fieldset>
+    </div>
   );
 }
 

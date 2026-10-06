@@ -39,9 +39,13 @@ function minutes(seconds: number): string {
 
 export function RouteCheck({
   filters,
+  selectedId,
+  onSelect,
   onOverlay,
 }: {
   filters: HotspotFilters;
+  selectedId: number | null;
+  onSelect: (id: number) => void;
   onOverlay: (routes: RouteOverlay[], hotspots: RouteHotspotOut[] | null) => void;
 }) {
   const maps = useMaps();
@@ -91,7 +95,8 @@ export function RouteCheck({
       setRoutes(checked);
       setSelected(checked[0]?.id ?? null);
       publish(checked, checked[0]?.id ?? null);
-    } catch {
+    } catch (cause: unknown) {
+      console.error("Route check failed", cause);
       setError(true);
       setRoutes([]);
       onOverlay([], null);
@@ -165,22 +170,69 @@ export function RouteCheck({
 
           {current ? (
             <section aria-labelledby="along-heading">
-              <h4 id="along-heading" className={ui.cardTitle} style={{ fontSize: 20 }}>
-                Hotspots along route {current.letter}
-              </h4>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <h4 id="along-heading" className={ui.cardTitle} style={{ fontSize: 20 }}>
+                  Hotspots along route {current.letter}
+                </h4>
+                {current.along.hotspots.length > 0 ? (
+                  <span className={ui.muted} style={{ fontSize: 14 }}>
+                    {current.along.hotspots.length} {current.along.hotspots.length === 1 ? "hotspot" : "hotspots"}
+                  </span>
+                ) : null}
+              </div>
               {current.along.hotspots.length === 0 ? (
                 <p className={ui.muted} style={{ margin: 0 }}>No hotspots lie within {buffer} m of this route.</p>
               ) : (
-                <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
-                  {current.along.hotspots.map((item) => (
-                    <li key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", fontSize: 14 }}>
-                      <span>{item.km_from_start.toFixed(1)} km</span>
-                      <span>{hotspotLabel(item)}</span>
-                      <span>{item.collisions} collisions</span>
-                      <Pill label={item.persistence} />
-                    </li>
-                  ))}
-                </ol>
+                <>
+                  <table className={styles.routeTable}>
+                    <caption className="visually-hidden">
+                      Hotspots within {buffer} m of route {current.letter}, in order from the start. Select an area to show it on the map.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col" className={styles.numeric}>Km</th>
+                        <th scope="col">Area</th>
+                        <th scope="col" className={styles.numeric}>Collisions</th>
+                        <th scope="col">Persistence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {current.along.hotspots.map((item) => {
+                        const isSelected = item.id === selectedId;
+                        return (
+                          // The row is clickable for mouse users. The area button is the keyboard and screen reader control.
+                          <tr
+                            key={item.id}
+                            className={`${styles.routeRow} ${isSelected ? styles.routeRowSelected : ""}`}
+                            onClick={() => { onSelect(item.id); }}
+                          >
+                            <td className={styles.numeric}>{item.km_from_start.toFixed(1)}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className={styles.areaButton}
+                                aria-pressed={isSelected}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onSelect(item.id);
+                                }}
+                              >
+                                {hotspotLabel(item)}
+                              </button>
+                            </td>
+                            <td className={styles.numeric}>{item.collisions}</td>
+                            <td><Pill label={item.persistence} small /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {current.along.truncated ? (
+                    <p className={ui.muted} style={{ fontSize: 13, margin: "8px 0 0" }}>
+                      Showing the first {current.along.hotspots.length} of {current.along.summary.hotspots} hotspots along this route.
+                    </p>
+                  ) : null}
+                </>
               )}
             </section>
           ) : null}

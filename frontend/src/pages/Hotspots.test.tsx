@@ -1,10 +1,14 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "../test/server";
 import { renderPage } from "../test/renderPage";
 import { severeHotspots } from "../test/fixtures";
-import { LIST_LIMIT, buildCsv, inBounds, sortHotspots, type Bounds } from "../state/hotspotState";
+import alongRoute from "../test/fixtures/along_route_manchester_sheffield.json";
+import hotspotsMeta from "../test/fixtures/hotspots_meta.json";
+import hotspotsSevere from "../test/fixtures/hotspots_severe_all_times.json";
+import { LIST_LIMIT, buildCsv, hotspotLabel, inBounds, sortHotspots, type Bounds } from "../state/hotspotState";
 import { SCOTLAND_VIEW, GB_VIEW } from "../test/fakeMaps";
 import type { Hotspot } from "../api/endpoints";
 
@@ -13,6 +17,16 @@ function expectedList(source: Hotspot[], minimum: number, bounds?: Bounds): Hots
   const filtered = source.filter((h) => h.collisions >= minimum && (bounds ? inBounds(h, bounds) : true));
   return sortHotspots(filtered, "collisions").slice(0, LIST_LIMIT);
 }
+
+// The meta endpoint as an older backend answers it: no bbox, months, persistence or route.
+function withoutFeatures() {
+  server.use(
+    http.get("/api/hotspots/meta", () => HttpResponse.json({ ...hotspotsMeta.body, features: {} })),
+  );
+}
+
+// The footer under the list, once it has loaded.
+const LIST_LOADED = /hotspots shown\./;
 
 const requested: string[] = [];
 
@@ -41,7 +55,7 @@ describe("hotspot query", () => {
   it("changes the minimum with the subset, and sends the time-of-day slice", async () => {
     const user = userEvent.setup();
     renderPage("/hotspots");
-    await screen.findByText(/hotspots in view/);
+    await screen.findByText(LIST_LOADED);
     await user.click(screen.getByRole("button", { name: "All collisions" }));
     await waitFor(() => { expect(requested.some((url) => url.includes("subset=all") && url.includes("min_collisions=10"))).toBe(true); });
 
@@ -54,21 +68,24 @@ describe("hotspot query", () => {
 describe("viewport filtering without bbox support", () => {
   it("shows the hotspots inside the current map view, and changes when the view moves", async () => {
     const user = userEvent.setup();
+    withoutFeatures();
     renderPage("/hotspots");
+    const total = severeHotspots.filter((h) => h.collisions >= 5).length.toLocaleString("en-GB");
     const gbList = expectedList(severeHotspots, 5, GB_VIEW.bounds);
-    await screen.findByText(new RegExp(`Showing 6 of ${gbList.length} hotspots in the map view`));
+    await screen.findByText(new RegExp(`${gbList.length} of ${total} hotspots shown`));
 
     await user.click(screen.getByRole("button", { name: "View Scotland" }));
     const scotland = expectedList(severeHotspots, 5, SCOTLAND_VIEW.bounds);
     expect(scotland.length).toBeGreaterThanOrEqual(6);
-    await screen.findByText(new RegExp(`Showing 6 of ${scotland.length} hotspots in the map view`));
+    await screen.findByText(new RegExp(`${scotland.length} of ${total} hotspots shown`));
   });
 });
 
 describe("features the backend does not provide yet", () => {
   it("disables Month, Persistence and Route check", async () => {
+    withoutFeatures();
     renderPage("/hotspots");
-    await screen.findByText(/hotspots in view/);
+    await screen.findByText(LIST_LOADED);
     expect(screen.getByRole("button", { name: "Month" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Month" })).toHaveAttribute("title");
     expect(screen.getByLabelText("Persistence")).toBeDisabled();
@@ -76,11 +93,46 @@ describe("features the backend does not provide yet", () => {
   });
 });
 
+describe("route check", () => {
+  it("lists the hotspots along the route as a table, and selects one on click", async () => {
+    const user = userEvent.setup();
+    renderPage("/hotspots");
+    await screen.findByText(LIST_LOADED);
+    await user.click(screen.getByRole("button", { name: "Route check" }));
+    for (const label of ["From", "To"]) {
+      await user.type(screen.getByRole("combobox", { name: label }), "Big Ben");
+      await user.click(await screen.findByRole("option", { name: "Big Ben, London" }));
+    }
+    await user.click(await screen.findByRole("button", { name: "Check route" }));
+
+    const table = await screen.findByRole("table");
+    const headers = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
+    expect(headers).toEqual(["Km", "Area", "Collisions", "Persistence"]);
+    const first = alongRoute.body.hotspots[0];
+    if (!first) throw new Error("no hotspots in the route fixture");
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(alongRoute.body.hotspots.length);
+    expect(rows[0]).toHaveTextContent(`${first.km_from_start.toFixed(1)}${first.label}${first.collisions}${first.persistence}`);
+
+    await user.click(within(table).getAllByRole("button", { name: first.label })[0] as HTMLElement);
+    expect(screen.getByTestId("fake-hotspot-canvas")).toHaveAttribute("data-selected", String(first.id));
+    expect(screen.getByTestId("fake-hotspot-canvas")).toHaveAttribute(
+      "data-target",
+      `${first.latitude},${first.longitude},14`,
+    );
+    expect(await screen.findByText(new RegExp(`Hotspot details: ${first.label}`))).toBeInTheDocument();
+  });
+});
+
 describe("list and details", () => {
   it("shows the truncation notice when the list is at the limit", async () => {
+    // The captured response, which says how many matched beyond the 1,000 sent.
+    server.use(http.get("/api/hotspots", () => HttpResponse.json(hotspotsSevere.body)));
     renderPage("/hotspots");
     expect(
-      await screen.findByText(/Only the first 1,000 hotspots for these filters are loaded/),
+      await screen.findByText(
+        new RegExp(`Showing the 1,000 largest of ${hotspotsSevere.body.total_matched.toLocaleString("en-GB")} hotspots`),
+      ),
     ).toBeInTheDocument();
   });
 
@@ -93,6 +145,53 @@ describe("list and details", () => {
     await user.click(row);
     expect(await screen.findByRole("heading", { name: `Hotspot details: LSOA ${top.label?.replace(/^LSOA\s*/, "") ?? ""}` })).toBeInTheDocument();
     expect(screen.getByTestId("location-search")).toHaveTextContent(`id=${top.id}`);
+  });
+
+  it("selecting a row flies the map to that hotspot at street zoom", async () => {
+    const user = userEvent.setup();
+    renderPage("/hotspots");
+    const top = expectedList(severeHotspots, 5, GB_VIEW.bounds)[0];
+    if (!top) throw new Error("no hotspots in the fixture");
+    await user.click(await screen.findByRole("button", { name: new RegExp(hotspotLabel(top)) }));
+    expect(screen.getByTestId("fake-hotspot-canvas")).toHaveAttribute(
+      "data-target",
+      `${top.latitude},${top.longitude},14`,
+    );
+  });
+
+  it("goes back to the view from before the first selection, and clears it", async () => {
+    const user = userEvent.setup();
+    renderPage("/hotspots");
+    expect(screen.queryByRole("button", { name: /Back to all hotspots/ })).not.toBeInTheDocument();
+    const rows = await screen.findAllByRole("button", { name: /^LSOA|^Area near/ });
+    const [first, second] = rows;
+    if (!first || !second) throw new Error("not enough rows");
+    // Two selections in a row still go back to the wide view, not to the first hotspot.
+    await user.click(first);
+    await user.click(second);
+    await user.click(screen.getByRole("button", { name: /Back to all hotspots/ }));
+
+    const canvas = screen.getByTestId("fake-hotspot-canvas");
+    expect(canvas).toHaveAttribute("data-target", `${GB_VIEW.center.lat},${GB_VIEW.center.lng},${GB_VIEW.zoom}`);
+    expect(canvas).toHaveAttribute("data-selected", "");
+    expect(screen.queryByRole("button", { name: /Back to all hotspots/ })).not.toBeInTheDocument();
+  });
+
+  it("clears the selection on a click on the empty map, or on Escape", async () => {
+    const user = userEvent.setup();
+    renderPage("/hotspots");
+    const [first] = await screen.findAllByRole("button", { name: /Select on map/ });
+    if (!first) throw new Error("no map buttons");
+    await user.click(first);
+    expect(await screen.findByText(/Hotspot details:/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Click empty map" }));
+    await waitFor(() => { expect(screen.queryByText(/Hotspot details:/)).not.toBeInTheDocument(); });
+    expect(screen.getByTestId("location-search")).not.toHaveTextContent("id=");
+
+    await user.click(first);
+    expect(await screen.findByText(/Hotspot details:/)).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => { expect(screen.queryByText(/Hotspot details:/)).not.toBeInTheDocument(); });
   });
 
   it("selecting a circle on the map selects the same hotspot", async () => {
@@ -112,8 +211,10 @@ describe("list and details", () => {
     const revokeObjectURL = vi.fn();
     Object.assign(URL, { createObjectURL, revokeObjectURL });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    // Without bbox the export is filtered to the view in the browser, which is what this checks.
+    withoutFeatures();
     renderPage("/hotspots");
-    await screen.findByText(/hotspots in view/);
+    await screen.findByText(LIST_LOADED);
     await user.click(screen.getByRole("button", { name: "Export CSV" }));
 
     const blob = createObjectURL.mock.calls[0]?.[0];
@@ -131,7 +232,7 @@ describe("list and details", () => {
   it("resets the filters to the defaults", async () => {
     const user = userEvent.setup();
     renderPage("/hotspots?subset=all&min=12");
-    await screen.findByText(/hotspots in view/);
+    await screen.findByText(LIST_LOADED);
     await user.click(screen.getByRole("button", { name: "Reset filters" }));
     await waitFor(() => { expect(screen.getByTestId("location-search")).toHaveTextContent("subset=severe&min=5"); });
   });

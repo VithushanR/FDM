@@ -16,24 +16,27 @@ interface FieldProps {
 }
 
 // Label above the control. The control gets aria-invalid and aria-describedby from here.
+// The label and the body sit on the parent grid's rows, so controls in a row line up.
 export function Field({ id, label, error, helper, span, children }: FieldProps) {
   const describedBy = [error ? `${id}-error` : null, helper ? `${id}-help` : null].filter(Boolean).join(" ");
   return (
-    <div className={styles.field} style={{ gridColumn: `span ${span}` }} data-field={id}>
+    <div className={styles.gridField} style={{ gridColumn: `span ${span}` }} data-field={id}>
       <label className={styles.label} htmlFor={id}>
         {label}
       </label>
-      {children({ "aria-invalid": Boolean(error), "aria-describedby": describedBy || undefined })}
-      {helper ? (
-        <span id={`${id}-help`} className={styles.helper}>
-          {helper}
-        </span>
-      ) : null}
-      {error ? (
-        <span id={`${id}-error`} className={styles.errorText}>
-          {error}
-        </span>
-      ) : null}
+      <div className={styles.fieldBody}>
+        {children({ "aria-invalid": Boolean(error), "aria-describedby": describedBy || undefined })}
+        {helper ? (
+          <span id={`${id}-help`} className={styles.helper}>
+            {helper}
+          </span>
+        ) : null}
+        {error ? (
+          <span id={`${id}-error`} className={styles.errorText}>
+            {error}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

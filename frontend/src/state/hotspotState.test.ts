@@ -49,7 +49,8 @@ describe("filters and the request", () => {
     expect(parsed.subset).toBe("severe");
     expect(parsed.minCollisions).toBe(5);
     expect(parsed.viewBy).toBe("time");
-    expect(parsed.slice).toBe("Night");
+    expect(parsed.slice).toBe("All times");
+    expect(filtersFromParams(new URLSearchParams("view=time&slice=Night"), slices).slice).toBe("Night");
     expect(filtersFromParams(new URLSearchParams("subset=all"), slices).minCollisions).toBe(10);
   });
 
@@ -87,11 +88,11 @@ describe("viewport, sorting and zoom", () => {
     expect(sortHotspots(list, "share").map((h) => h.id)).toEqual([3, 1, 2]);
   });
 
-  it("draws only the largest 150 below zoom 8, and everything at zoom 8 or above", () => {
-    const many = Array.from({ length: 200 }, (_, index) => sample({ id: index + 1, collisions: index + 1 }));
-    expect(drawnHotspots(many, 7)).toHaveLength(150);
-    expect(drawnHotspots(many, 7)[0]?.collisions).toBe(200);
-    expect(drawnHotspots(many, 8)).toHaveLength(200);
+  it("draws only the largest 400 at zoom 6 or below, and everything above zoom 6", () => {
+    const many = Array.from({ length: 500 }, (_, index) => sample({ id: index + 1, collisions: index + 1 }));
+    expect(drawnHotspots(many, 6)).toHaveLength(400);
+    expect(drawnHotspots(many, 6)[0]?.collisions).toBe(500);
+    expect(drawnHotspots(many, 7)).toHaveLength(500);
   });
 });
 
@@ -99,11 +100,13 @@ describe("CSV export", () => {
   it("writes a header and every API field, quoting text with commas", () => {
     const csv = buildCsv([sample({ id: 7, label: "Hill, North" })]);
     const [header, row] = csv.trim().split("\n");
-    expect(header).toBe("id,subset,slice,latitude,longitude,radius_m,collisions,fatal,serious,slight,label");
-    expect(row).toBe('7,severe,All times,51.5,-0.12,200,10,1,4,5,"Hill, North"');
+    expect(header).toBe(
+      "id,subset,slice,month,latitude,longitude,radius_m,collisions,fatal,serious,slight,label,years_present,persistence",
+    );
+    expect(row).toBe('7,severe,All times,,51.5,-0.12,200,10,1,4,5,"Hill, North",,');
   });
 
   it("leaves a missing label empty", () => {
-    expect(buildCsv([sample({ label: null })]).trim().split("\n")[1]?.endsWith(",")).toBe(true);
+    expect(buildCsv([sample({ label: null })]).trim().split("\n")[1]?.split(",")[11]).toBe("");
   });
 });
