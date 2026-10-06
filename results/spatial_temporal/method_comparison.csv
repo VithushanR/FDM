@@ -1,0 +1,9 @@
+window,collisions,method,clusters,noise_pct,secs,largest,median_radius_m,silhouette,davies_bouldin
+Densest square,42488,K-Means,1522,0.0,23.7,126,183,0.456,0.67
+Densest square,42488,DBSCAN,684,36.4,0.3,1423,86,0.306,0.54
+Densest square,42488,HDBSCAN,1522,30.8,16.9,83,73,0.614,0.46
+Densest square,42488,OPTICS,1399,38.9,712.0,79,70,0.67,0.4
+Typical square,2779,K-Means,90,0.0,0.1,88,847,0.452,0.72
+Typical square,2779,DBSCAN,13,94.1,0.0,20,56,0.945,0.07
+Typical square,2779,HDBSCAN,90,30.7,0.1,64,420,0.57,0.53
+Typical square,2779,OPTICS,54,66.8,16.2,34,297,0.731,0.35

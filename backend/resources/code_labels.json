@@ -1,0 +1,131 @@
+{
+ "road_type": {
+  "1": "Roundabout",
+  "2": "One way street",
+  "3": "Dual carriageway",
+  "6": "Single carriageway",
+  "7": "Slip road",
+  "9": "Unknown",
+  "12": "One way street/Slip road",
+  "-1": "Data missing or out of range"
+ },
+ "first_road_class": {
+  "1": "Motorway",
+  "2": "A(M)",
+  "3": "A",
+  "4": "B",
+  "5": "C",
+  "6": "Unclassified",
+  "-1": "Data missing or out of range"
+ },
+ "junction_detail": {
+  "0": "Not at junction or within 20 metres",
+  "13": "T or staggered junction",
+  "16": "Crossroads",
+  "17": "Junction with more than four arms (not roundabout)",
+  "18": "Using private drive or entrance",
+  "19": "Other junction",
+  "99": "unknown (self reported)",
+  "-1": "Data missing or out of range"
+ },
+ "junction_control": {
+  "0": "Not at junction or within 20 metres",
+  "1": "Authorised person",
+  "2": "Auto traffic signal",
+  "3": "Stop sign",
+  "4": "Give way or uncontrolled",
+  "-1": "Data missing or out of range",
+  "9": "unknown (self reported)"
+ },
+ "pedestrian_crossing": {
+  "0": "No physical crossing facility within 50m",
+  "11": "Human crossing control by school crossing patrol",
+  "12": "Human crossing control by other authorised person",
+  "13": "Zebra crossing",
+  "14": "Pedestrian light crossing (pelican or puffin or toucan or similar)",
+  "15": "Pedestrian phase at traffic signal",
+  "16": "Footbridge or subway",
+  "17": "Central refuge - no other controls",
+  "99": "unknown (self reported)",
+  "-1": "Data missing or out of range"
+ },
+ "urban_or_rural_area": {
+  "1": "Urban",
+  "2": "Rural",
+  "3": "Unallocated",
+  "-1": "Data missing or out of range"
+ },
+ "trunk_road_flag": {
+  "1": "Trunk (Roads managed by Highways England)",
+  "2": "Non-trunk",
+  "-1": "Data missing or out of range"
+ },
+ "light_conditions": {
+  "1": "Daylight",
+  "4": "Darkness - lights lit",
+  "5": "Darkness - lights unlit",
+  "6": "Darkness - no lighting",
+  "7": "Darkness - lighting unknown",
+  "-1": "Data missing or out of range"
+ },
+ "weather_conditions": {
+  "1": "Fine no high winds",
+  "2": "Raining no high winds",
+  "3": "Snowing no high winds",
+  "4": "Fine + high winds",
+  "5": "Raining + high winds",
+  "6": "Snowing + high winds",
+  "7": "Fog or mist",
+  "8": "Other",
+  "9": "Unknown",
+  "-1": "Data missing or out of range"
+ },
+ "road_surface_conditions": {
+  "1": "Dry",
+  "2": "Wet or damp",
+  "3": "Snow",
+  "4": "Frost or ice",
+  "5": "Flood over 3cm. deep",
+  "6": "Oil or diesel",
+  "7": "Mud",
+  "-1": "Data missing or out of range",
+  "9": "unknown (self reported)"
+ },
+ "special_conditions_at_site": {
+  "0": "None",
+  "1": "Auto traffic signal - out",
+  "2": "Auto signal part defective",
+  "3": "Road sign or marking defective or obscured",
+  "4": "Roadworks",
+  "5": "Road surface defective",
+  "6": "Oil or diesel",
+  "7": "Mud",
+  "-1": "Data missing or out of range",
+  "9": "unknown (self reported)"
+ },
+ "carriageway_hazards": {
+  "0": "None",
+  "11": "Defective traffic signals",
+  "12": "Permanent road signing or markings defective or obscured or inadequate",
+  "13": "Roadworks",
+  "14": "Oil or diesel",
+  "15": "Mud",
+  "16": "Dislodged vehicle load in carriageway",
+  "17": "Other object in carriageway",
+  "18": "Involvement with previous collision",
+  "19": "Pedestrian in carriageway - not injured",
+  "20": "Any animal in carriageway (except ridden horse)",
+  "21": "Poor or defective road surface",
+  "-1": "Data missing or out of range",
+  "99": "unknown (self reported)"
+ },
+ "day_of_week": {
+  "1": "Sunday",
+  "2": "Monday",
+  "3": "Tuesday",
+  "4": "Wednesday",
+  "5": "Thursday",
+  "6": "Friday",
+  "7": "Saturday"
+ }
+}

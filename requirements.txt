@@ -1,0 +1,9 @@
+# scikit-learn must match the version used to train the real model. That version is not known yet.
+# It must be 1.2 or later because the code uses OneHotEncoder(sparse_output=...).
+fastapi
+uvicorn[standard]
+pydantic>=2
+pandas
+numpy
+joblib
+scikit-learn>=1.2
