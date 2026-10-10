@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getHotspotMeta, type Hotspot } from "../api/endpoints";
 import type { RouteHotspotOut } from "../api/hotspotContract";
+import { useHotspotCounts } from "../api/useHotspotCounts";
 import { useHotspotList } from "../api/useHotspotList";
 import { useLoad } from "../api/useLoad";
 import { DetailsCard } from "../components/DetailsCard";
@@ -17,16 +18,20 @@ import ui from "../components/ui.module.css";
 import type { LatLng, MapTarget, RouteOverlay, ViewState } from "../maps/types";
 import {
   buildCsv,
+  countsQuery,
   defaultFilters,
   drawnHotspots,
+  effectiveShow,
   filtersFromParams,
   hotspotQuery,
   hotspotsFilename,
   inBounds,
   paramsFromFilters,
+  showOptions,
   SMALL_ZOOM,
   type HotspotFilters as Filters,
-  type SortKey,
+  type ShowKey,
+  viewText,
 } from "../state/hotspotState";
 
 const PAGE_SIZE = 6;
@@ -83,7 +88,11 @@ export function HotspotsPage() {
   const [initial] = useState(() => readView(params));
   const [view, setView] = useState<ViewState | null>(null);
   const debouncedView = useDebounced(view, VIEW_DEBOUNCE_MS);
-  const query = hotspotQuery(filters, bboxOn ? (debouncedView?.bounds ?? null) : null);
+  // The counts for each Show option, for all of Great Britain. An option with none is greyed out, and a chosen one
+  // that has none gives way to the widest one that has some.
+  const counts = useHotspotCounts(features.counts === true ? countsQuery(filters) : null);
+  const { show, emptied } = effectiveShow(filters, counts);
+  const query = hotspotQuery(filters, show, bboxOn ? (debouncedView?.bounds ?? null) : null);
   const list = useHotspotList(query);
   const body = list.data;
   const listHotspots = useMemo<Hotspot[]>(() => body?.hotspots ?? [], [body]);
@@ -228,8 +237,8 @@ export function HotspotsPage() {
 
   // A new ranking clears the selection and returns the map to the wider view, so the new top hotspots are visible.
   // Done in one URL update, because two updates in a row would overwrite each other.
-  function changeSort(sort: SortKey) {
-    changeFilters({ sort }, false);
+  function changeShow(next: ShowKey) {
+    changeFilters({ show: next }, false);
     if (returnView) {
       targetKey.current += 1;
       setTarget({ ...returnView, key: targetKey.current });
@@ -367,8 +376,11 @@ export function HotspotsPage() {
                   total={totalMatched}
                   kept={ranking !== inView}
                   selectedId={selectedId}
-                  sort={filters.sort}
-                  onSort={changeSort}
+                  show={show}
+                  options={showOptions(filters.subset, counts)}
+                  emptied={emptied}
+                  viewText={viewText(filters)}
+                  onShow={changeShow}
                   onSelect={onSelect}
                   onShowMore={() => {
                     setShown((count) => count + SHOW_MORE);
@@ -379,6 +391,7 @@ export function HotspotsPage() {
               ) : (
                 <RouteCheck
                   filters={filters}
+                  show={show}
                   selectedId={selectedId}
                   onSelect={onSelect}
                   onOverlay={(overlays, hotspots) => {

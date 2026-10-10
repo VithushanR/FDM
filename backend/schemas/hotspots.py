@@ -323,6 +323,13 @@ class HotspotListOut(BaseModel):
     hotspots: list[HotspotOut]
 
 
+class CountsOut(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"example": {"collisions": 967, "fatal": 154, "severe": 967}})
+    collisions: int = Field(description="Every hotspot that matches the filters")
+    fatal: int = Field(description="Those with at least one Fatal collision")
+    severe: int = Field(description="Those with at least one Fatal or Serious collision")
+
+
 class NearbyOut(HotspotOut):
     distance_m: int
     busiest_time: str | None = Field(None, description="Time of day with the most collisions, or null without profiles")

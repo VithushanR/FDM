@@ -65,6 +65,53 @@ describe("hotspot query", () => {
   });
 });
 
+describe("the Show option", () => {
+  it("greys out Collisions for Fatal and Serious, and shows only hotspots with a death for Fatal collisions", async () => {
+    const user = userEvent.setup();
+    renderPage("/hotspots");
+    await screen.findByText(LIST_LOADED);
+    const select = screen.getByLabelText("Show");
+    const withDeath = severeHotspots.filter((h) => h.collisions >= 5 && h.fatal > 0);
+    expect(withDeath.length).toBeGreaterThan(0);
+    await within(select).findByRole("option", { name: `Fatal collisions (${withDeath.length.toLocaleString("en-GB")})` });
+    expect(within(select).getByRole("option", { name: "Collisions" })).toBeDisabled();
+
+    await user.selectOptions(select, "fatal");
+    await waitFor(() => {
+      expect(requested.some((url) => url.includes("contains=fatal") && url.includes("sort=fatal"))).toBe(true);
+    });
+    await screen.findByText(new RegExp(`${withDeath.length.toLocaleString("en-GB")} hotspots match your filters`));
+    for (const row of screen.getAllByRole("button", { name: /LSOA|Area near/ })) expect(row).not.toHaveTextContent(/ 0 Fatal/);
+    expect(screen.getByTestId("location-search")).toHaveTextContent("show=fatal");
+  });
+
+  it("offers all three options for All collisions", async () => {
+    const user = userEvent.setup();
+    renderPage("/hotspots");
+    await screen.findByText(LIST_LOADED);
+    await user.click(screen.getByRole("button", { name: "All collisions" }));
+    const select = screen.getByLabelText("Show");
+    await waitFor(() => { expect(select).toHaveValue("collisions"); });
+    await waitFor(() => {
+      for (const option of within(select).getAllByRole("option")) expect(option).toBeEnabled();
+    });
+  });
+
+  it("moves to another option and says why when Fatal collisions has none", async () => {
+    server.use(
+      http.get("/api/hotspots/counts", () => HttpResponse.json({ collisions: 30, fatal: 0, severe: 30 })),
+    );
+    renderPage("/hotspots?subset=severe&view=time&slice=Night&show=fatal");
+    expect(
+      await screen.findByText('No hotspots with a fatal collision in Night with these filters. Showing "Has Fatal or Serious" instead.'),
+    ).toBeInTheDocument();
+    const select = screen.getByLabelText("Show");
+    expect(select).toHaveValue("severe");
+    expect(within(select).getByRole("option", { name: "Fatal collisions (0)" })).toBeDisabled();
+    await waitFor(() => { expect(requested.some((url) => url.includes("contains=severe"))).toBe(true); });
+  });
+});
+
 describe("viewport filtering without bbox support", () => {
   it("shows the hotspots inside the current map view, and changes when the view moves", async () => {
     const user = userEvent.setup();
@@ -203,21 +250,21 @@ describe("list and details", () => {
     expect(screen.queryByText(/ranking from before you zoomed in/)).not.toBeInTheDocument();
   });
 
-  it("a new sort clears the selection and goes back to the wide view", async () => {
+  it("a new Show option clears the selection and goes back to the wide view", async () => {
     const user = userEvent.setup();
     renderPage("/hotspots");
     const [first] = await screen.findAllByRole("button", { name: /^LSOA|^Area near/ });
     if (!first) throw new Error("no rows");
     await user.click(first);
     expect(await screen.findByText(/Hotspot details:/)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Sort by"), "share");
+    await user.selectOptions(screen.getByLabelText("Show"), "fatal");
 
     const canvas = screen.getByTestId("fake-hotspot-canvas");
     await waitFor(() => { expect(canvas).toHaveAttribute("data-selected", ""); });
     expect(canvas).toHaveAttribute("data-target", `${GB_VIEW.center.lat},${GB_VIEW.center.lng},${GB_VIEW.zoom}`);
     expect(screen.queryByText(/Hotspot details:/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Back to all hotspots/ })).not.toBeInTheDocument();
-    await waitFor(() => { expect(requested.some((url) => url.includes("sort=share"))).toBe(true); });
+    await waitFor(() => { expect(requested.some((url) => url.includes("contains=fatal"))).toBe(true); });
   });
 
   it("clears the selection on a click on the empty map, or on Escape", async () => {

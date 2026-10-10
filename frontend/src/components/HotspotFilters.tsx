@@ -3,6 +3,7 @@ import { MONTH_NAMES } from "../api/hotspotContract";
 import {
   ALL_TIMES,
   defaultMinimum,
+  defaultShow,
   type HotspotFilters as Filters,
   type Subset,
   type ViewBy,
@@ -50,7 +51,7 @@ export function HotspotFilters({ filters, slices, features, rules, onChange, onR
             { value: "all", label: "All collisions" },
           ]}
           onChange={(subset) => {
-            onChange({ subset, minCollisions: defaultMinimum(subset) });
+            onChange({ subset, minCollisions: defaultMinimum(subset), show: defaultShow(subset) });
           }}
         />
       </div>

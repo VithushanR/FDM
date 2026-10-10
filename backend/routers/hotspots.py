@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from ..schemas.classification import location_range_errors
 from ..schemas.common import ApiValidationError
 from ..schemas.hotspots import (
-    ALL_TIMES, PERSISTENCE_PARAMS, AlongRouteOut, DetailsOut, HotspotListOut, NearbyListOut,
+    ALL_TIMES, PERSISTENCE_PARAMS, AlongRouteOut, CountsOut, DetailsOut, HotspotListOut, NearbyListOut,
 )
 from ..services.hotspot_service import HotspotService, HotspotUnavailable, get_hotspot_service
 from ..services.hotspot_store import HotspotStore
@@ -14,7 +14,9 @@ from ..services.hotspot_store import HotspotStore
 router = APIRouter(prefix="/api/hotspots", tags=["hotspots"])
 BAD_OPTION = "Choose one of the listed options."
 NOT_IN_FILE = "not available in this data file"
-SORTS = ("collisions", "fatal", "share")
+SORTS = ("collisions", "fatal", "severe", "share")
+# Which hotspots to keep by what they contain: any, at least one Fatal, or at least one Fatal or Serious.
+CONTAINS = ("any", "fatal", "severe")
 ROUTE_CAP = 5000
 ROUTE_POINTS = (2, 2000)
 ROUTE_BUFFER = (50, 1000)
@@ -39,6 +41,7 @@ def _read_filters(
     month: int | None,
     persistence: str,
     min_collisions: int,
+    contains: str = "any",
 ) -> tuple[dict, dict[str, str]]:
     """Checks the shared filters. Returns the keyword arguments for the store queries, and the errors."""
     errors: dict[str, str] = {}
@@ -50,17 +53,22 @@ def _read_filters(
         errors["month"] = "A month view uses the All times slice. Choose All times, or remove the month."
     if persistence not in PERSISTENCE_PARAMS:
         errors["persistence"] = BAD_OPTION
+    if contains not in CONTAINS:
+        errors["contains"] = BAD_OPTION
     if not store.is_v2:
         if month is not None:
             errors["month"] = NOT_IN_FILE
         if persistence != "any":
             errors["persistence"] = NOT_IN_FILE
+        if contains != "any":
+            errors["contains"] = NOT_IN_FILE
     filters = {
         "subset": subset,
         "slice_name": slice_name,
         "month": month,
         "persistence_label": PERSISTENCE_PARAMS.get(persistence),
         "min_collisions": min_collisions,
+        "contains": contains,
     }
     return filters, errors
 
@@ -96,12 +104,14 @@ def list_hotspots(
     persistence: str = "any",
     bbox: str | None = None,
     sort: str = "collisions",
+    contains: str = Query("any", description="any, fatal (at least one Fatal) or severe (at least one Fatal or Serious)"),
 ):
     store = _load(service)
     if isinstance(store, JSONResponse):
         return store
     filters, errors = _read_filters(
         store, subset=subset, slice_name=slice_, month=month, persistence=persistence, min_collisions=min_collisions,
+        contains=contains,
     )
     box = None
     if bbox is not None:
@@ -147,6 +157,8 @@ def hotspot_meta(service: HotspotService = Depends(get_hotspot_service)):
         "nearby": v2,
         "details": profiles is not None,
         "route": v2,
+        "contains": v2,
+        "counts": v2,
         "months": v2,
         "persistence": v2,
         "total_matched": v2,
@@ -199,6 +211,7 @@ def nearby(
         raise ApiValidationError(errors)
 
     filters.pop("persistence_label")
+    filters.pop("contains")
     rows, distances = store.nearby(latitude, longitude, radius_m, **filters)
     chosen, chosen_distances = rows[:limit], distances[:limit]
     profiles = None
@@ -213,6 +226,35 @@ def nearby(
         item["busiest_time"] = profiles.busiest_time(int(index)) if profiles is not None else None
         results.append(item)
     return {"count": len(results), "radius_m": radius_m, "hotspots": results}
+
+
+@router.get("/counts", response_model=CountsOut)
+def hotspot_counts(
+    service: HotspotService = Depends(get_hotspot_service),
+    subset: str = "all",
+    slice_: str = Query("All times", alias="slice"),
+    min_collisions: int = Query(1, ge=1),
+    month: int | None = Query(None, ge=1, le=12),
+    persistence: str = "any",
+):
+    """How many hotspots in all of Great Britain match the filters, for each value of contains."""
+    store = _load(service)
+    if isinstance(store, JSONResponse):
+        return store
+    filters, errors = _read_filters(
+        store, subset=subset, slice_name=slice_, month=month, persistence=persistence, min_collisions=min_collisions,
+    )
+    if not store.is_v2:
+        errors["file"] = NOT_IN_FILE
+    if errors:
+        raise ApiValidationError(errors)
+    filters.pop("contains")
+    rows = store.select(store.all_rows(), **filters)
+    return {
+        "collisions": int(len(rows)),
+        "fatal": int((store.fatal[rows] > 0).sum()),
+        "severe": int(((store.fatal[rows] + store.serious[rows]) > 0).sum()),
+    }
 
 
 @router.get("/{hotspot_id}", response_model=DetailsOut)
@@ -306,6 +348,10 @@ async def along_route(request: Request, service: HotspotService = Depends(get_ho
         slice_name = ALL_TIMES
     subset = raw.get("subset", "severe")
     persistence = raw.get("persistence", "any")
+    contains = raw.get("contains", "any")
+    if not isinstance(contains, str):
+        errors["contains"] = BAD_OPTION
+        contains = "any"
     if not isinstance(subset, str):
         errors["subset"] = BAD_OPTION
         subset = "severe"
@@ -315,6 +361,7 @@ async def along_route(request: Request, service: HotspotService = Depends(get_ho
     filters, filter_errors = _read_filters(
         store, subset=subset, slice_name=slice_name, month=month if isinstance(month, int) else None,
         persistence=persistence, min_collisions=min_collisions if isinstance(min_collisions, int) else 1,
+        contains=contains,
     )
     errors.update(filter_errors)
     if errors:

@@ -129,6 +129,7 @@ class HotspotStore:
         persistence_label: str | None,
         min_collisions: int,
         bbox: tuple[float, float, float, float] | None = None,
+        contains: str = "any",
     ) -> np.ndarray:
         """Applies the filters to candidate rows. A month view never mixes with the All times view."""
         keep = (self.subset_idx[rows] == self.subsets.index(subset)) & (
@@ -136,6 +137,10 @@ class HotspotStore:
         )
         keep &= self.month[rows] == (month or 0)
         keep &= self.collisions[rows] >= min_collisions
+        if contains == "fatal":
+            keep &= self.fatal[rows] > 0
+        elif contains == "severe":
+            keep &= (self.fatal[rows] + self.serious[rows]) > 0
         if persistence_label is not None:
             keep &= self.persistence_idx[rows] == (self.persistence_labels or []).index(persistence_label)
         if bbox is not None:
@@ -149,6 +154,8 @@ class HotspotStore:
         collisions = self.collisions[rows]
         if sort == "fatal":
             primary = self.fatal[rows].astype(np.float64)
+        elif sort == "severe":
+            primary = (self.fatal[rows] + self.serious[rows]).astype(np.float64)
         elif sort == "share":
             primary = (self.fatal[rows] + self.serious[rows]) / np.maximum(collisions, 1)
         else:
@@ -190,6 +197,7 @@ class HotspotStore:
         month: int | None,
         min_collisions: int,
         persistence_label: str | None,
+        contains: str = "any",
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
         """Hotspots whose centre is within buffer_m of the path. Returns rows, distance from the route, km from the start, and the route length in km.
 
@@ -203,7 +211,7 @@ class HotspotStore:
         candidates = self.band(lat_min - lat_margin, lat_max + lat_margin)
         candidates = self.select(
             candidates, subset=subset, slice_name=slice_name, month=month, persistence_label=persistence_label,
-            min_collisions=min_collisions, bbox=(lon_min - lon_margin, lat_min - lat_margin, lon_max + lon_margin, lat_max + lat_margin),
+            min_collisions=min_collisions, contains=contains, bbox=(lon_min - lon_margin, lat_min - lat_margin, lon_max + lon_margin, lat_max + lat_margin),
         )
         clat, clon = self.lat[candidates], self.lon[candidates]
         best = np.full(candidates.shape, np.inf)

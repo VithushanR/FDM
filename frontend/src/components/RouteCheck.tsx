@@ -2,7 +2,7 @@ import { useState } from "react";
 import { postAlongRoute, type AlongRouteOut, type RouteHotspotOut } from "../api/endpoints";
 import { useMaps } from "../maps/MapsContext";
 import type { LatLng, RouteAlternative, RouteOverlay } from "../maps/types";
-import { hotspotLabel, type HotspotFilters } from "../state/hotspotState";
+import { hotspotLabel, type HotspotFilters, type ShowKey } from "../state/hotspotState";
 import { PlaceSearchBox } from "./PlaceSearchBox";
 import { Pill } from "./Pill";
 import { Segmented } from "./Segmented";
@@ -39,11 +39,14 @@ function minutes(seconds: number): string {
 
 export function RouteCheck({
   filters,
+  show,
   selectedId,
   onSelect,
   onOverlay,
 }: {
   filters: HotspotFilters;
+  // The Show option in use, so the route lists the same kind of hotspot as the map.
+  show: ShowKey;
   selectedId: number | null;
   onSelect: (id: number) => void;
   onOverlay: (routes: RouteOverlay[], hotspots: RouteHotspotOut[] | null) => void;
@@ -83,6 +86,7 @@ export function RouteCheck({
             path,
             buffer_m: buffer,
             subset: filters.subset,
+            contains: show === "collisions" ? "any" : show,
             slice: filters.viewBy === "month" ? "All times" : filters.slice,
             month: filters.viewBy === "month" ? filters.month : null,
             min_collisions: filters.minCollisions,

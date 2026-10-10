@@ -15,6 +15,8 @@ export interface HotspotFeatures {
   nearby?: boolean;
   details?: boolean;
   route?: boolean;
+  contains?: boolean;
+  counts?: boolean;
   months?: boolean;
   persistence?: boolean;
   total_matched?: boolean;
@@ -29,12 +31,14 @@ export const MONTH_NAMES = [
 
 export interface ListQuery {
   subset: "severe" | "all";
+  // any, or only hotspots with at least one Fatal (fatal) or one Fatal or Serious (severe) collision.
+  contains: "any" | "fatal" | "severe";
   slice: string;
   minCollisions: number;
   limit: number;
   month: number | null;
   persistence: PersistenceParam;
-  sort: "collisions" | "fatal" | "share";
+  sort: "collisions" | "fatal" | "severe" | "share";
   bbox: [number, number, number, number] | null;
 }
 
@@ -46,6 +50,7 @@ export function listPath(query: ListQuery): string {
     limit: String(query.limit),
     sort: query.sort,
   });
+  if (query.contains !== "any") params.set("contains", query.contains);
   if (query.month !== null) params.set("month", String(query.month));
   if (query.persistence !== "any") params.set("persistence", query.persistence);
   if (query.bbox) params.set("bbox", query.bbox.map((value) => value.toFixed(5)).join(","));

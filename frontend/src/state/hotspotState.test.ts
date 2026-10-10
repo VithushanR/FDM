@@ -3,13 +3,16 @@ import type { Hotspot } from "../api/endpoints";
 import {
   LIST_LIMIT,
   buildCsv,
+  countsQuery,
   defaultFilters,
   drawnHotspots,
+  effectiveShow,
   filtersFromParams,
   hotspotQuery,
   hotspotsFilename,
   inBounds,
   paramsFromFilters,
+  showOptions,
   sortHotspots,
 } from "./hotspotState";
 
@@ -34,13 +37,31 @@ describe("filters and the request", () => {
   });
 
   it("builds the request from the subset, slice and minimum, with the limit", () => {
-    const query = hotspotQuery({ ...defaultFilters(), subset: "all", minCollisions: 10, viewBy: "time", slice: "Night" });
+    const query = hotspotQuery({ ...defaultFilters(), subset: "all", minCollisions: 10, viewBy: "time", slice: "Night" }, "collisions");
     const url = new URL(query, "http://test");
     expect(url.pathname).toBe("/api/hotspots");
     expect(url.searchParams.get("subset")).toBe("all");
     expect(url.searchParams.get("slice")).toBe("Night");
     expect(url.searchParams.get("min_collisions")).toBe("10");
     expect(url.searchParams.get("limit")).toBe(String(LIST_LIMIT));
+    expect(url.searchParams.has("contains")).toBe(false);
+  });
+
+  it("asks for what the Show option needs, ordered by that count", () => {
+    const fatal = new URL(hotspotQuery(defaultFilters(), "fatal"), "http://test").searchParams;
+    expect(fatal.get("contains")).toBe("fatal");
+    expect(fatal.get("sort")).toBe("fatal");
+    const severe = new URL(hotspotQuery(defaultFilters(), "severe"), "http://test").searchParams;
+    expect(severe.get("contains")).toBe("severe");
+    expect(severe.get("sort")).toBe("severe");
+  });
+
+  it("asks for the counts with every filter except Show and the view", () => {
+    const url = new URL(countsQuery({ ...defaultFilters(), viewBy: "month", month: 1, persistence: "recent" }), "http://test");
+    expect(url.pathname).toBe("/api/hotspots/counts");
+    expect(url.searchParams.get("month")).toBe("1");
+    expect(url.searchParams.get("persistence")).toBe("recent");
+    expect(url.searchParams.has("bbox")).toBe(false);
   });
 
   it("reads filters from the URL and falls back to the defaults for anything unknown", () => {
@@ -55,17 +76,42 @@ describe("filters and the request", () => {
   });
 
   it("writes only the non-default filters to the URL and reads them back", () => {
-    const filters = { ...defaultFilters(), subset: "all" as const, minCollisions: 12, sort: "fatal" as const };
+    const filters = { ...defaultFilters(), subset: "all" as const, minCollisions: 12, show: "fatal" as const };
     const params = paramsFromFilters(filters);
     expect(params.get("subset")).toBe("all");
     expect(params.get("min")).toBe("12");
-    expect(params.get("sort")).toBe("fatal");
+    expect(params.get("show")).toBe("fatal");
     expect(params.has("persistence")).toBe(false);
-    expect(filtersFromParams(params, ["All times"])).toMatchObject({ subset: "all", minCollisions: 12, sort: "fatal" });
+    expect(filtersFromParams(params, ["All times"])).toMatchObject({ subset: "all", minCollisions: 12, show: "fatal" });
+    expect(paramsFromFilters(defaultFilters()).has("show")).toBe(false);
   });
 
   it("names the CSV file from the subset and slice", () => {
-    expect(hotspotsFilename({ ...defaultFilters(), slice: "Evening Rush" })).toBe("hotspots-severe-evening-rush.csv");
+    expect(hotspotsFilename({ ...defaultFilters(), slice: "Evening Rush" })).toBe("hotspots-severe-severe-evening-rush.csv");
+  });
+});
+
+describe("the Show options", () => {
+  const counts = { collisions: 967, fatal: 154, severe: 967 };
+
+  it("greys out Collisions for Fatal and Serious, where it would repeat Has Fatal or Serious", () => {
+    const options = showOptions("severe", counts);
+    expect(options.find((o) => o.value === "collisions")).toMatchObject({ disabled: true, label: "Collisions" });
+    expect(options.find((o) => o.value === "fatal")).toMatchObject({ disabled: false, label: "Fatal collisions (154)" });
+    expect(showOptions("all", counts).every((o) => !o.disabled)).toBe(true);
+    // A link asking for Collisions with Fatal and Serious opens on Has Fatal or Serious.
+    expect(filtersFromParams(new URLSearchParams("subset=severe&show=collisions"), ["All times"]).show).toBe("severe");
+  });
+
+  it("greys out an option with no hotspots, and moves to the widest one that has some", () => {
+    const none = { collisions: 40, fatal: 0, severe: 25 };
+    expect(showOptions("all", none).find((o) => o.value === "fatal")?.disabled).toBe(true);
+    expect(effectiveShow({ ...defaultFilters(), subset: "all", show: "fatal" }, none)).toEqual({ show: "collisions", emptied: "fatal" });
+    expect(effectiveShow({ ...defaultFilters(), show: "fatal" }, none)).toEqual({ show: "severe", emptied: "fatal" });
+    expect(effectiveShow({ ...defaultFilters(), show: "fatal" }, counts)).toEqual({ show: "fatal", emptied: null });
+    // Before the counts arrive every option is open, so nothing is blocked while they load.
+    expect(effectiveShow({ ...defaultFilters(), show: "fatal" }, null)).toEqual({ show: "fatal", emptied: null });
+    expect(showOptions("all", null).every((o) => !o.disabled)).toBe(true);
   });
 });
 
@@ -85,6 +131,7 @@ describe("viewport, sorting and zoom", () => {
     ];
     expect(sortHotspots(list, "collisions").map((h) => h.id)).toEqual([2, 1, 3]);
     expect(sortHotspots(list, "fatal").map((h) => h.id)).toEqual([3, 2, 1]);
+    expect(sortHotspots(list, "severe").map((h) => h.id)).toEqual([3, 2, 1]);
     expect(sortHotspots(list, "share").map((h) => h.id)).toEqual([3, 1, 2]);
   });
 

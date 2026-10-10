@@ -60,6 +60,13 @@ export const getHealth = (): Promise<Health> => apiRequest<Health>("/api/health"
 export const getHotspotMeta = (): Promise<HotspotMeta> => apiRequest<HotspotMeta>("/api/hotspots/meta");
 export const getHotspots = (path: string, signal?: AbortSignal): Promise<HotspotListOut> =>
   apiRequest<HotspotListOut>(path, { signal });
+export interface HotspotCounts {
+  collisions: number;
+  fatal: number;
+  severe: number;
+}
+export const getHotspotCounts = (path: string, signal?: AbortSignal): Promise<HotspotCounts> =>
+  apiRequest<HotspotCounts>(path, { signal });
 export const getNearby = (path: string, signal?: AbortSignal): Promise<NearbyListOut> =>
   apiRequest<NearbyListOut>(path, { signal });
 export const getHotspotDetails = (id: number, signal?: AbortSignal): Promise<DetailsOut> =>

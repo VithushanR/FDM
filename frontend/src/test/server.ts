@@ -19,23 +19,46 @@ type Row = (typeof hotspotsSevere.body.hotspots)[number];
 
 // The list endpoint, answered from the captured lists. Month and persistence use their own captures, and
 // everything else is filtered and sorted the way the backend does it.
+function baseRows(url: URL): Row[] {
+  const subset = url.searchParams.get("subset") ?? "all";
+  const month = url.searchParams.get("month");
+  const persistence = url.searchParams.get("persistence");
+  if (month !== null) return month === "7" ? (hotspotsMonthJuly.body.hotspots as unknown as Row[]) : [];
+  if (persistence === "recent") return hotspotsRecent.body.hotspots as unknown as Row[];
+  return (subset === "severe" ? hotspotsSevere.body.hotspots : hotspotsAll.body.hotspots) as unknown as Row[];
+}
+
+// The Show counts, from the same rows as the list.
+function countsResponse(url: URL) {
+  const minimum = Number(url.searchParams.get("min_collisions") ?? "1");
+  const rows = baseRows(url).filter((row) => row.collisions >= minimum);
+  return {
+    collisions: rows.length,
+    fatal: rows.filter((row) => row.fatal > 0).length,
+    severe: rows.filter((row) => row.fatal + row.serious > 0).length,
+  };
+}
+
 function listResponse(url: URL) {
   const subset = url.searchParams.get("subset") ?? "all";
   const minimum = Number(url.searchParams.get("min_collisions") ?? "1");
   const limit = Number(url.searchParams.get("limit") ?? "200");
   const sort = url.searchParams.get("sort") ?? "collisions";
-  const month = url.searchParams.get("month");
-  const persistence = url.searchParams.get("persistence");
-  let base: Row[];
-  if (month !== null) {
-    base = month === "7" ? (hotspotsMonthJuly.body.hotspots as unknown as Row[]) : [];
-  } else if (persistence === "recent") {
-    base = hotspotsRecent.body.hotspots as unknown as Row[];
-  } else {
-    base = (subset === "severe" ? hotspotsSevere.body.hotspots : hotspotsAll.body.hotspots) as unknown as Row[];
-  }
-  const filtered = base.filter((row) => row.collisions >= minimum);
-  const key = (row: Row) => (sort === "fatal" ? row.fatal : sort === "share" ? (row.fatal + row.serious) / row.collisions : row.collisions);
+  const contains = url.searchParams.get("contains") ?? "any";
+  const filtered = baseRows(url).filter(
+    (row) =>
+      row.collisions >= minimum &&
+      (contains !== "fatal" || row.fatal > 0) &&
+      (contains !== "severe" || row.fatal + row.serious > 0),
+  );
+  const key = (row: Row) =>
+    sort === "fatal"
+      ? row.fatal
+      : sort === "severe"
+        ? row.fatal + row.serious
+        : sort === "share"
+          ? (row.fatal + row.serious) / row.collisions
+          : row.collisions;
   const sorted = [...filtered].sort((a, b) => key(b) - key(a) || b.collisions - a.collisions || a.id - b.id);
   const chosen = sorted.slice(0, limit);
   return {
@@ -61,6 +84,7 @@ export const handlers = [
     return HttpResponse.json(fixture.body, { status: fixture.status });
   }),
   http.get("/api/hotspots", ({ request }) => HttpResponse.json(listResponse(new URL(request.url)))),
+  http.get("/api/hotspots/counts", ({ request }) => HttpResponse.json(countsResponse(new URL(request.url)))),
   http.get("/api/hotspots/nearby", ({ request }) => {
     const latitude = Number(new URL(request.url).searchParams.get("latitude"));
     const fixture = latitude > 51.4 && latitude < 51.6 ? nearbyLondon : nearbyTop;

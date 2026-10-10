@@ -59,7 +59,7 @@ def test_meta_reports_every_version_2_feature(tmp_path, client_for):
     with client_for(write_v2(tmp_path)) as client:
         meta = client.get("/api/hotspots/meta").json()
         assert meta["features"] == {
-            "bbox": True, "nearby": True, "details": True, "route": True,
+            "bbox": True, "nearby": True, "details": True, "route": True, "contains": True, "counts": True,
             "months": True, "persistence": True, "total_matched": True,
         }
         assert meta["months"][0] == "January"
@@ -122,6 +122,77 @@ def test_persistence_filter_matches_the_labels(tmp_path, client_for):
         assert bad.json()["errors"][0]["field"] == "persistence"
 
 
+def no_deaths(row: dict) -> None:
+    """Makes a hotspot Serious only. The total stays the same, so the profile still adds up."""
+    row["serious"] += row["fatal"]
+    row["fatal"] = 0
+
+
+def test_contains_keeps_hotspots_with_a_death_or_a_severe_collision(tmp_path, client_for):
+    def mutate(rows):
+        no_deaths(severe_all_times(rows)[0])
+        no_deaths(severe_all_times(rows)[2])
+    path = write_v2(tmp_path, mutate)
+    rows = severe_all_times(json.loads(path.read_text())["hotspots"])
+    expected = sorted(r["id"] for r in rows if r["fatal"] > 0)
+    assert 0 < len(expected) < len(rows), "the sample needs hotspots with and without a death"
+    with client_for(path) as client:
+        body = client.get("/api/hotspots?subset=severe&min_collisions=1&contains=fatal&limit=1000").json()
+        assert sorted(row["id"] for row in body["hotspots"]) == expected
+        assert body["total_matched"] == len(expected)
+        severe = client.get("/api/hotspots?subset=severe&min_collisions=1&contains=severe&limit=1000").json()
+        assert severe["total_matched"] == len(rows)
+        bad = client.get("/api/hotspots?contains=slight")
+        assert bad.json()["errors"][0]["field"] == "contains"
+
+
+def test_contains_severe_drops_hotspots_with_only_slight_collisions(tmp_path, client_for):
+    def mutate(rows):
+        row = next(r for r in rows if r["subset"] == "all" and r["slice"] == "All times" and r["month"] is None)
+        row["slight"] += row["fatal"] + row["serious"]
+        row["fatal"] = row["serious"] = 0
+    path = write_v2(tmp_path, mutate)
+    rows = [r for r in json.loads(path.read_text())["hotspots"]
+            if r["subset"] == "all" and r["slice"] == "All times" and r["month"] is None]
+    expected = sorted(r["id"] for r in rows if r["fatal"] + r["serious"] > 0)
+    assert len(expected) < len(rows)
+    with client_for(path) as client:
+        body = client.get("/api/hotspots?subset=all&min_collisions=1&contains=severe&limit=1000").json()
+        assert sorted(row["id"] for row in body["hotspots"]) == expected
+
+
+def test_counts_match_the_list_for_each_contains_value(tmp_path, client_for):
+    def mutate(rows):
+        no_deaths(severe_all_times(rows)[0])
+    path = write_v2(tmp_path, mutate)
+    with client_for(path) as client:
+        counts = client.get("/api/hotspots/counts?subset=severe&min_collisions=1").json()
+        for key, contains in (("collisions", "any"), ("fatal", "fatal"), ("severe", "severe")):
+            listed = client.get(f"/api/hotspots?subset=severe&min_collisions=1&contains={contains}&limit=1").json()
+            assert counts[key] == listed["total_matched"]
+        assert counts["fatal"] < counts["collisions"]
+        assert client.get("/api/hotspots/counts?subset=nobody").json()["errors"][0]["field"] == "subset"
+
+
+def test_route_with_contains_fatal_skips_hotspots_without_a_death(tmp_path, client_for):
+    def mutate(rows):
+        far_away(rows)
+        severe = severe_all_times(rows)
+        with_death, without = severe[0], severe[1]
+        no_deaths(without)
+        place(rows, with_death["id"], *metres_north(51.5, 0.0, 50))
+        place(rows, without["id"], *metres_north(51.5, 0.1, 50))
+    path = write_v2(tmp_path, mutate)
+    route = {"path": [[51.5, -0.2], [51.5, 0.2]], "buffer_m": 100, "subset": "severe", "min_collisions": 1}
+    with client_for(path) as client:
+        every = client.post("/api/hotspots/along-route", json=route).json()["hotspots"]
+        fatal_only = client.post("/api/hotspots/along-route", json={**route, "contains": "fatal"}).json()["hotspots"]
+        assert len(every) == 2
+        assert len(fatal_only) == 1 and fatal_only[0]["fatal"] > 0
+        bad = client.post("/api/hotspots/along-route", json={**route, "contains": 3})
+        assert bad.json()["errors"][0]["field"] == "contains"
+
+
 def test_sort_modes_order_the_results(tmp_path, client_for):
     with client_for(write_v2(tmp_path)) as client:
         by_collisions = client.get("/api/hotspots?subset=all&min_collisions=1&limit=1000").json()["hotspots"]
@@ -130,6 +201,9 @@ def test_sort_modes_order_the_results(tmp_path, client_for):
         by_fatal = client.get("/api/hotspots?subset=all&min_collisions=1&sort=fatal&limit=1000").json()["hotspots"]
         fatals = [row["fatal"] for row in by_fatal]
         assert fatals == sorted(fatals, reverse=True)
+        by_severe = client.get("/api/hotspots?subset=all&min_collisions=1&sort=severe&limit=1000").json()["hotspots"]
+        severes = [row["fatal"] + row["serious"] for row in by_severe]
+        assert severes == sorted(severes, reverse=True)
         by_share = client.get("/api/hotspots?subset=all&min_collisions=1&sort=share&limit=1000").json()["hotspots"]
         shares = [(row["fatal"] + row["serious"]) / row["collisions"] for row in by_share]
         assert shares == sorted(shares, reverse=True)
@@ -353,6 +427,9 @@ def test_a_version_1_file_turns_the_new_features_off(tmp_path, client_for):
         assert client.get("/api/hotspots?subset=all&month=3").json()["errors"][0] == {"field": "month", "message": NOT_IN_FILE}
         assert client.get("/api/hotspots?subset=all&persistence=recent").json()["errors"][0]["message"] == NOT_IN_FILE
         assert client.get("/api/hotspots?subset=all&bbox=-1,50,1,52").json()["errors"][0]["message"] == NOT_IN_FILE
+        assert client.get("/api/hotspots?subset=all&contains=fatal").json()["errors"][0] == {
+            "field": "contains", "message": NOT_IN_FILE}
+        assert client.get("/api/hotspots/counts?subset=all").json()["errors"][0] == {"field": "file", "message": NOT_IN_FILE}
         assert client.get("/api/hotspots/nearby?latitude=51.5&longitude=-0.1").json()["errors"][0] == {
             "field": "file", "message": NOT_IN_FILE}
         assert client.get("/api/hotspots/1").json()["errors"][0]["message"] == NOT_IN_FILE
