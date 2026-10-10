@@ -202,11 +202,11 @@ export function HotspotsPage() {
     setTarget({ center: point, zoom: PLACE_ZOOM, key: targetKey.current });
   }, []);
 
-  function changeFilters(patch: Partial<Filters>) {
+  function changeFilters(patch: Partial<Filters>, keepSelection = true) {
     const next = { ...filters, ...patch };
     navigateRef.current((previous) => {
       const updated = paramsFromFilters(next);
-      for (const key of ["id", "lat", "lng", "z"]) {
+      for (const key of keepSelection ? ["id", "lat", "lng", "z"] : ["lat", "lng", "z"]) {
         const value = previous.get(key);
         if (value !== null) updated.set(key, value);
       }
@@ -215,8 +215,15 @@ export function HotspotsPage() {
     setShown(PAGE_SIZE);
   }
 
+  // A new ranking clears the selection and returns the map to the wider view, so the new top hotspots are visible.
+  // Done in one URL update, because two updates in a row would overwrite each other.
   function changeSort(sort: SortKey) {
-    changeFilters({ sort });
+    changeFilters({ sort }, false);
+    if (returnView) {
+      targetKey.current += 1;
+      setTarget({ ...returnView, key: targetKey.current });
+      setReturnView(null);
+    }
   }
 
   function reset() {

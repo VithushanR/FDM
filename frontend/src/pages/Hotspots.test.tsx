@@ -177,6 +177,23 @@ describe("list and details", () => {
     expect(screen.queryByRole("button", { name: /Back to all hotspots/ })).not.toBeInTheDocument();
   });
 
+  it("a new sort clears the selection and goes back to the wide view", async () => {
+    const user = userEvent.setup();
+    renderPage("/hotspots");
+    const [first] = await screen.findAllByRole("button", { name: /^LSOA|^Area near/ });
+    if (!first) throw new Error("no rows");
+    await user.click(first);
+    expect(await screen.findByText(/Hotspot details:/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Sort by"), "share");
+
+    const canvas = screen.getByTestId("fake-hotspot-canvas");
+    await waitFor(() => { expect(canvas).toHaveAttribute("data-selected", ""); });
+    expect(canvas).toHaveAttribute("data-target", `${GB_VIEW.center.lat},${GB_VIEW.center.lng},${GB_VIEW.zoom}`);
+    expect(screen.queryByText(/Hotspot details:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Back to all hotspots/ })).not.toBeInTheDocument();
+    await waitFor(() => { expect(requested.some((url) => url.includes("sort=share"))).toBe(true); });
+  });
+
   it("clears the selection on a click on the empty map, or on Escape", async () => {
     const user = userEvent.setup();
     renderPage("/hotspots");
