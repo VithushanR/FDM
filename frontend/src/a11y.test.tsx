@@ -21,7 +21,7 @@ describe("axe checks", () => {
 
   it("the Hotspots page has no violations", async () => {
     const { container } = renderPage("/hotspots");
-    await screen.findByText(/hotspots shown\./);
+    await screen.findByText(/hotspots match your filters\./);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

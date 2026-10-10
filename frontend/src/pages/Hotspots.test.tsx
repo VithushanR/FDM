@@ -26,7 +26,7 @@ function withoutFeatures() {
 }
 
 // The footer under the list, once it has loaded.
-const LIST_LOADED = /hotspots shown\./;
+const LIST_LOADED = /hotspots match your filters\./;
 
 const requested: string[] = [];
 
@@ -72,12 +72,12 @@ describe("viewport filtering without bbox support", () => {
     renderPage("/hotspots");
     const total = severeHotspots.filter((h) => h.collisions >= 5).length.toLocaleString("en-GB");
     const gbList = expectedList(severeHotspots, 5, GB_VIEW.bounds);
-    await screen.findByText(new RegExp(`${gbList.length} of ${total} hotspots shown`));
+    await screen.findByText(new RegExp(`of ${gbList.length.toLocaleString("en-GB")} loaded\\. ${total} hotspots match`));
 
     await user.click(screen.getByRole("button", { name: "View Scotland" }));
     const scotland = expectedList(severeHotspots, 5, SCOTLAND_VIEW.bounds);
     expect(scotland.length).toBeGreaterThanOrEqual(6);
-    await screen.findByText(new RegExp(`${scotland.length} of ${total} hotspots shown`));
+    await screen.findByText(new RegExp(`of ${scotland.length.toLocaleString("en-GB")} loaded\\. ${total} hotspots match`));
   });
 });
 
@@ -175,6 +175,32 @@ describe("list and details", () => {
     expect(canvas).toHaveAttribute("data-target", `${GB_VIEW.center.lat},${GB_VIEW.center.lng},${GB_VIEW.zoom}`);
     expect(canvas).toHaveAttribute("data-selected", "");
     expect(screen.queryByRole("button", { name: /Back to all hotspots/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the ranking while a selection zooms the map in, and ranks the view again once it is cleared", async () => {
+    const user = userEvent.setup();
+    // Without bbox the list follows the view in the browser, so the test server does not need to filter by area.
+    withoutFeatures();
+    renderPage("/hotspots");
+    const rowName = /LSOA|Area near/;
+    const before = (await screen.findAllByRole("button", { name: rowName })).map((row) => row.textContent);
+    const [first] = await screen.findAllByRole("button", { name: rowName });
+    if (!first) throw new Error("no rows");
+    await user.click(first);
+    // The map moves to a smaller area, as it does when it flies to the selection.
+    await user.click(screen.getByRole("button", { name: "View Scotland" }));
+
+    expect(screen.getByText(/ranking from before you zoomed in/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: rowName }).map((row) => row.textContent)).toEqual(before);
+
+    await user.keyboard("{Escape}");
+    const scotland = expectedList(severeHotspots, 5, SCOTLAND_VIEW.bounds).slice(0, before.length);
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: rowName }).map((row) => row.textContent)).toEqual(
+        scotland.map((h, i) => `${i + 1}${hotspotLabel(h)}${h.collisions} collisions: ${h.fatal} Fatal, ${h.serious} Serious`),
+      );
+    });
+    expect(screen.queryByText(/ranking from before you zoomed in/)).not.toBeInTheDocument();
   });
 
   it("a new sort clears the selection and goes back to the wide view", async () => {

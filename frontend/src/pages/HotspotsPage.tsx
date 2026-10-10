@@ -112,11 +112,16 @@ export function HotspotsPage() {
   const zoom = view?.zoom ?? initial.zoom;
   const drawn = useMemo(() => drawnHotspots(inView, zoom), [inView, zoom]);
   const mapHotspots = routeHotspots !== null ? (routeHotspots as Hotspot[]) : drawn;
-  const listItems = inView.slice(0, shown);
+  // The ranking from before a selection zoomed the map in. It is kept while the selection lasts, so the next row can
+  // be picked without going back. It applies only while something is selected.
+  const [frozen, setFrozen] = useState<Hotspot[] | null>(null);
+  const ranking = selectedId !== null && frozen !== null ? frozen : inView;
+  const listItems = ranking.slice(0, shown);
   // A hotspot picked from the route table may not be in the list, so the drawn hotspots are checked too.
   const selected =
     listHotspots.find((hotspot) => hotspot.id === selectedId) ??
     mapHotspots.find((hotspot) => hotspot.id === selectedId) ??
+    frozen?.find((hotspot) => hotspot.id === selectedId) ??
     null;
   const hovered = listHotspots.find((hotspot) => hotspot.id === hoveredId) ?? null;
   const smallZoomNote = routeHotspots === null && zoom <= SMALL_ZOOM && drawn.length < inView.length;
@@ -139,9 +144,9 @@ export function HotspotsPage() {
   const [returnView, setReturnView] = useState<{ center: LatLng; zoom: number } | null>(null);
 
   // The drawn hotspots and the view, read through a ref so onSelect stays stable and the markers are not redrawn.
-  const latest = useRef({ mapHotspots, zoom, center: view?.center ?? initial.center });
+  const latest = useRef({ mapHotspots, ranking, selectedId, zoom, center: view?.center ?? initial.center });
   useEffect(() => {
-    latest.current = { mapHotspots, zoom, center: view?.center ?? initial.center };
+    latest.current = { mapHotspots, ranking, selectedId, zoom, center: view?.center ?? initial.center };
   });
 
   // Selects a hotspot, from the list or the map, and flies the map to it.
@@ -151,7 +156,12 @@ export function HotspotsPage() {
       updated.set("id", String(id));
       return updated;
     });
-    const hotspot = latest.current.mapHotspots.find((item) => item.id === id);
+    // The first selection keeps the ranking. Later ones reuse it, so the list does not shrink to the zoomed-in view.
+    const { ranking: current, selectedId: previousId } = latest.current;
+    setFrozen((previous) => (previousId !== null && previous !== null ? previous : current));
+    // A row from the kept ranking may be off the map now, so the ranking is searched too.
+    const hotspot =
+      latest.current.mapHotspots.find((item) => item.id === id) ?? current.find((item) => item.id === id);
     if (hotspot) {
       // Keep the first view only, so selecting several hotspots in a row still goes back to the wide view.
       const { center, zoom: current } = latest.current;
@@ -212,6 +222,7 @@ export function HotspotsPage() {
       }
       return updated;
     });
+    setFrozen(null);
     setShown(PAGE_SIZE);
   }
 
@@ -240,7 +251,7 @@ export function HotspotsPage() {
   }
 
   function exportCsv() {
-    const blob = new Blob([buildCsv(inView)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([buildCsv(ranking)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -352,8 +363,9 @@ export function HotspotsPage() {
               {tab === "top" ? (
                 <HotspotList
                   items={listItems}
-                  inView={inView.length}
+                  inView={ranking.length}
                   total={totalMatched}
+                  kept={ranking !== inView}
                   selectedId={selectedId}
                   sort={filters.sort}
                   onSort={changeSort}
@@ -362,7 +374,7 @@ export function HotspotsPage() {
                     setShown((count) => count + SHOW_MORE);
                   }}
                   onExport={exportCsv}
-                  canExport={inView.length > 0}
+                  canExport={ranking.length > 0}
                 />
               ) : (
                 <RouteCheck

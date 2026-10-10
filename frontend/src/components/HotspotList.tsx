@@ -14,9 +14,11 @@ interface Props {
   onShowMore: () => void;
   onExport: () => void;
   canExport: boolean;
+  // True while a selection keeps the ranking from before the map zoomed in.
+  kept: boolean;
 }
 
-export function HotspotList({ items, inView, total, selectedId, sort, onSort, onSelect, onShowMore, onExport, canExport }: Props) {
+export function HotspotList({ items, inView, total, selectedId, sort, onSort, onSelect, onShowMore, onExport, canExport, kept }: Props) {
   return (
     <section aria-labelledby="top-heading">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -45,6 +47,13 @@ export function HotspotList({ items, inView, total, selectedId, sort, onSort, on
           </button>
         </div>
       </div>
+
+      {kept ? (
+        <p className={ui.muted} style={{ margin: "10px 0 0", fontSize: 14 }}>
+          This is the ranking from before you zoomed in, so you can go down the list. Clear the selection to rank the
+          current view.
+        </p>
+      ) : null}
 
       <ol style={{ listStyle: "none", padding: 0, margin: "14px 0 0", display: "grid", gap: 8 }}>
         {items.map((hotspot, index) => {
@@ -76,7 +85,10 @@ export function HotspotList({ items, inView, total, selectedId, sort, onSort, on
 
       <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className={ui.muted} style={{ fontSize: 14 }}>
-          {inView} of {total.toLocaleString("en-GB")} hotspots shown. Click a row or a circle for its details.
+          {kept
+            ? `Showing ${items.length} of ${inView.toLocaleString("en-GB")}.`
+            : `Showing ${items.length} of ${inView.toLocaleString("en-GB")} loaded. ${total.toLocaleString("en-GB")} hotspots match your filters.`}{" "}
+          Click a row or a circle for its details.
         </span>
         {items.length < inView ? (
           <button type="button" className={ui.btnLink} onClick={onShowMore}>
