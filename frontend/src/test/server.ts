@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import about from "./fixtures/about.json";
 import alongRoute from "./fixtures/along_route_manchester_sheffield.json";
+import explainStandard from "./fixtures/explain_standard.json";
 import details from "./fixtures/hotspot_details_top.json";
 import hotspotsAll from "./fixtures/hotspots_all_all_times.json";
 import hotspotsMeta from "./fixtures/hotspots_meta.json";
@@ -77,6 +78,7 @@ export const handlers = [
   http.get("/api/about", () => HttpResponse.json(about.body, { status: about.status })),
   http.get("/api/hotspots/meta", () => HttpResponse.json(hotspotsMeta.body, { status: hotspotsMeta.status })),
   http.post("/api/predict", () => HttpResponse.json(predictStandard.body, { status: predictStandard.status })),
+  http.post("/api/explain", () => HttpResponse.json(explainStandard.body, { status: explainStandard.status })),
   http.post("/api/location/check", async ({ request }) => {
     const body = (await request.json()) as { latitude: number; longitude: number };
     // Belfast is the outside point, Central London is covered. Anything else is treated as London.

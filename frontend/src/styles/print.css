@@ -1,11 +1,21 @@
 @media print {
   @page {
-    margin: 15mm;
+    size: A4 portrait;
+    margin: 16mm 14mm;
   }
 
+  /* Page numbers: supported behind a flag in some Chromium builds, silently ignored elsewhere. */
+  @page {
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+    }
+  }
+
+  html,
   body {
-    background: #fff;
-    min-width: 0;
+    background: #fff !important;
+    min-width: 0 !important;
+    width: auto !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
@@ -16,14 +26,82 @@
     display: none !important;
   }
 
-  .report-paper {
-    box-shadow: none;
-    border: 0;
-    padding: 0;
-    max-width: none;
+  /* The app-shell container around every page: drop its screen padding/width cap for print. */
+  .page {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
   }
 
-  .report-section {
+  .results-anchor,
+  .report-print-anchor {
+    margin: 0 !important;
+  }
+
+  /* Unwrap the report card: the framed-card chrome is a screen affordance, not part of the document. */
+  .report-frame {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .report-frame > div {
+    border: 0 !important;
+    border-radius: 0 !important;
+    height: auto !important;
+  }
+
+  .report-shell {
+    padding: 0 !important;
+  }
+
+  .report-tray {
+    background: transparent !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .report-paper {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* The severity word is readable on its own; this border keeps it legible even if the printer
+     drops the background colour (print-color-adjust is only a hint some printers ignore). */
+  .severity-badge {
+    background: #fff !important;
+    color: #000 !important;
+    border: 3px solid #000 !important;
+  }
+
+  .report-section,
+  .report-footer,
+  .report-paper table,
+  .report-paper li {
     break-inside: avoid;
+  }
+
+  .report-paper h4,
+  .report-paper h5 {
+    break-after: avoid;
+  }
+
+  .explain-row {
+    break-inside: avoid;
+  }
+
+  .report-paper p,
+  .report-paper li,
+  .report-paper dt,
+  .report-paper dd {
+    orphans: 3;
+    widows: 3;
   }
 }

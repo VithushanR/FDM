@@ -1,7 +1,15 @@
 import { createContext, useContext, useMemo, useReducer, type Dispatch, type ReactNode } from "react";
-import type { PredictResponse } from "../api/endpoints";
+import type { ExplainFactor, PredictResponse } from "../api/endpoints";
 import type { NormalisedError } from "../api/client";
 import type { LatLng, PinStatus } from "../maps/types";
+
+export type ExplainState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ok"; factors: ExplainFactor[] }
+  | { status: "error" };
+
+export const IDLE_EXPLAIN: ExplainState = { status: "idle" };
 
 export interface Pin extends LatLng {
   name?: string;
@@ -27,6 +35,7 @@ export interface AssessState {
   latText: string;
   lngText: string;
   result: Result;
+  explain: ExplainState;
   submitting: boolean;
   submitError: NormalisedError | null;
 }
@@ -42,6 +51,7 @@ export const initialAssessState: AssessState = {
   latText: "",
   lngText: "",
   result: null,
+  explain: IDLE_EXPLAIN,
   submitting: false,
   submitError: null,
 };
@@ -55,6 +65,7 @@ export type AssessAction =
   | { type: "setMode"; mode: "map" | "coordinates" }
   | { type: "setCoordinateText"; latText?: string; lngText?: string }
   | { type: "setResult"; result: Result }
+  | { type: "setExplain"; explain: ExplainState }
   | { type: "setSubmitting"; submitting: boolean }
   | { type: "setSubmitError"; error: NormalisedError | null }
   | { type: "clearForm" };
@@ -86,7 +97,9 @@ export function assessReducer(state: AssessState, action: AssessAction): AssessS
         lngText: action.lngText ?? state.lngText,
       };
     case "setResult":
-      return { ...state, result: action.result };
+      return { ...state, result: action.result, explain: IDLE_EXPLAIN };
+    case "setExplain":
+      return { ...state, explain: action.explain };
     case "setSubmitting":
       return { ...state, submitting: action.submitting };
     case "setSubmitError":

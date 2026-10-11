@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ..schemas.classification import (
-    HealthOk, LocationCheckResponse, PredictResponse, SchemaResponse, location_range_errors, parse_form,
-    parse_location,
+    ExplainResponse, HealthOk, LocationCheckResponse, PredictResponse, SchemaResponse, location_range_errors,
+    parse_form, parse_location,
 )
 from ..schemas.common import ApiValidationError
 from ..services.coverage_service import CoverageService, get_coverage_service
@@ -85,3 +85,22 @@ async def predict(
     result["warnings"] = warnings
     result["location"] = location
     return result
+
+
+@router.post("/explain", response_model=ExplainResponse)
+async def explain(
+    request: Request,
+    service: ModelService = Depends(get_model_service),
+):
+    if not service.loaded:
+        return JSONResponse(status_code=503, content={"loaded": False, "error": service.error})
+    values, errors = parse_form(await _json_body(request))
+    if "body" in errors:
+        raise ApiValidationError(errors)
+    answers, errors, _ = service.check_answers(values, errors)
+    latitude, longitude = values.get("latitude"), values.get("longitude")
+    if latitude is not None and longitude is not None and "latitude" not in errors and "longitude" not in errors:
+        errors.update(location_range_errors(latitude, longitude))
+    if errors:
+        raise ApiValidationError(dict(sorted(errors.items(), key=lambda item: FORM_ORDER.get(item[0], len(FORM_ORDER)))))
+    return {"factors": service.explain(answers)}

@@ -123,6 +123,16 @@ class PredictResponse(BaseModel):
     location: LocationOut | None
 
 
+class ExplainFactor(BaseModel):
+    field: str
+    label: str
+    points: float
+
+
+class ExplainResponse(BaseModel):
+    factors: list[ExplainFactor]
+
+
 class FieldOption(BaseModel):
     value: str
     label: str

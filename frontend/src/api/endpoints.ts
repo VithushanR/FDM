@@ -8,6 +8,8 @@ export type Schema = components["schemas"]["SchemaResponse"];
 export type FormField = components["schemas"]["FormField"];
 export type FormGroup = components["schemas"]["FormGroup"];
 export type PredictResponse = components["schemas"]["PredictResponse"];
+export type ExplainFactor = components["schemas"]["ExplainFactor"];
+export type ExplainResponse = components["schemas"]["ExplainResponse"];
 export type LocationCheck = components["schemas"]["LocationCheckResponse"];
 export type Health = components["schemas"]["HealthOk"];
 
@@ -75,6 +77,8 @@ export const postAlongRoute = (body: Record<string, unknown>, signal?: AbortSign
   postJson<AlongRouteOut>("/api/hotspots/along-route", body, signal);
 export const postPredict = (body: Record<string, unknown>, signal?: AbortSignal): Promise<PredictResponse> =>
   postJson<PredictResponse>("/api/predict", body, signal);
+export const postExplain = (body: Record<string, unknown>, signal?: AbortSignal): Promise<ExplainResponse> =>
+  postJson<ExplainResponse>("/api/explain", body, signal);
 export const postLocationCheck = (
   latitude: number,
   longitude: number,

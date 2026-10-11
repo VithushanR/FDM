@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { server } from "../test/server";
 import { renderPage } from "../test/renderPage";
 import { schema } from "../test/fixtures";
@@ -239,7 +239,7 @@ describe("location picker", () => {
 });
 
 describe("result", () => {
-  it("shows Serious with the model numbers, weighting note, reliability and left-blank list", async () => {
+  it("shows Serious with the model numbers, reliability and left-blank list, with no mention of weighting", async () => {
     const user = userEvent.setup();
     renderPage("/");
     await user.click(await screen.findByRole("button", { name: "Estimate severity" }));
@@ -248,9 +248,7 @@ describe("result", () => {
     expect(screen.getByText("28%")).toBeInTheDocument();
     expect(screen.getByText("48%")).toBeInTheDocument();
     expect(screen.getByText("24%")).toBeInTheDocument();
-    expect(
-      screen.getAllByText("Fatal counts 1.5 times when the result is chosen: 28% × 1.5 = 42%, below Serious at 48%.").length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Model estimate for each class").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText(
         "In testing, 34% of collisions the model called Serious really were Serious, and it found 46% of all real Serious collisions.",
@@ -258,20 +256,33 @@ describe("result", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByText(/Left blank: Road class, Junction control/)).toBeInTheDocument();
     expect(screen.getByText("This is a statistical estimate. It does not replace a police or medical assessment.")).toBeInTheDocument();
+    expect(screen.queryByText(/Fatal counts/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/before weighting/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fatal weight/)).not.toBeInTheDocument();
   });
 
-  it("adds the Fatal false-alarm sentence for a Fatal estimate", async () => {
-    server.use(
-      http.post("/api/predict", () =>
-        HttpResponse.json({ ...predictStandard.body, severity: "Fatal", severity_code: 1 }),
-      ),
-    );
+  it("shows the real Fatal false-alarm rate in the printed report's Limits section, for any verdict", async () => {
     const user = userEvent.setup();
     renderPage("/");
     await user.click(await screen.findByRole("button", { name: "Estimate severity" }));
-    const sentence = "About 93 in 100 collisions the model calls Fatal are false alarms, so check this estimate against the facts of the case.";
-    await screen.findAllByText(sentence);
-    expect(screen.getAllByText(sentence).length).toBeGreaterThan(0);
+    await screen.findByRole("heading", { name: "Serious", level: 2 });
+    const paper = document.querySelector(".report-paper") as HTMLElement;
+    expect(
+      within(paper).getByText(
+        "Fatal collisions are rare, so a Fatal result is often a false alarm: in testing, about 1 in 14 Fatal results (7%) was a real fatal collision.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows what pushed the estimate, split into what raised and lowered the chance", async () => {
+    const user = userEvent.setup();
+    renderPage("/");
+    await user.click(await screen.findByRole("button", { name: "Estimate severity" }));
+    await screen.findByRole("heading", { name: "Serious", level: 2 });
+    expect(await screen.findAllByText("Motorcycle involved")).not.toHaveLength(0);
+    expect(screen.getAllByText("Raised the chance of a more severe collision").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Lowered the chance of a more severe collision").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/These are patterns in past collision records/).length).toBeGreaterThan(0);
   });
 
   it("renders the API warnings", async () => {
@@ -304,8 +315,62 @@ describe("result", () => {
     await screen.findByRole("heading", { name: "Serious", level: 2 });
     const paper = document.querySelector(".report-paper") as HTMLElement;
     expect(within(paper).getByText("Collision severity assessment")).toBeInTheDocument();
-    expect(within(paper).getByText("5. Limits")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Print report" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save as PDF" })).toBeInTheDocument();
+    expect(within(paper).getByText("6. Limits")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Print / Save as PDF" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy summary" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save as PDF" })).not.toBeInTheDocument();
+  });
+
+  it("sets the document title while printing and restores it afterwards", async () => {
+    const user = userEvent.setup();
+    renderPage("/");
+    await user.click(await screen.findByRole("button", { name: "Estimate severity" }));
+    await screen.findByRole("heading", { name: "Serious", level: 2 });
+    const titleBefore = document.title;
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(document.title).not.toBe(titleBefore);
+    expect(document.title).toContain("Collision severity report");
+    window.dispatchEvent(new Event("afterprint"));
+    expect(document.title).toBe(titleBefore);
+  });
+
+  it("calls window.print when the Print / Save as PDF button is clicked", async () => {
+    const user = userEvent.setup();
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    renderPage("/");
+    await user.click(await screen.findByRole("button", { name: "Estimate severity" }));
+    await screen.findByRole("heading", { name: "Serious", level: 2 });
+    await user.click(screen.getByRole("button", { name: "Print / Save as PDF" }));
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    printSpy.mockRestore();
+  });
+
+  it("shows the vehicle count with correct pluralisation, and driver ages as min, max and average", async () => {
+    const user = userEvent.setup();
+    renderPage("/");
+    await screen.findByLabelText("Date");
+    await fillStandardInput(user);
+    await user.click(await screen.findByRole("button", { name: "Estimate severity" }));
+    const paper = await (async () => {
+      await screen.findByRole("heading", { name: "Serious", level: 2 });
+      return document.querySelector(".report-paper") as HTMLElement;
+    })();
+    expect(within(paper).getByText(/2 vehicles: Car or taxi, Motorcycle/)).toBeInTheDocument();
+    expect(within(paper).getByText("Min 34, max 52, average 43")).toBeInTheDocument();
+  });
+
+  it("shows a single vehicle as singular, and missing driver ages as Not given", async () => {
+    const user = userEvent.setup();
+    renderPage("/");
+    await screen.findByLabelText("Date");
+    await user.type(screen.getByLabelText("Number of vehicles"), "1");
+    await user.click(screen.getByLabelText("Car or taxi"));
+    await user.click(await screen.findByRole("button", { name: "Estimate severity" }));
+    const paper = await (async () => {
+      await screen.findByRole("heading", { name: "Serious", level: 2 });
+      return document.querySelector(".report-paper") as HTMLElement;
+    })();
+    expect(within(paper).getByText(/1 vehicle: Car or taxi/)).toBeInTheDocument();
+    expect(within(paper).getAllByText("Not given").length).toBeGreaterThan(0);
   });
 });

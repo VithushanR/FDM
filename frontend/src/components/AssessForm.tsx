@@ -1,6 +1,6 @@
 import { useRef, type FormEvent } from "react";
 import { ApiError, NETWORK_MESSAGE } from "../api/client";
-import { postPredict, type FormField, type FormGroup, type Hotspot } from "../api/endpoints";
+import { postExplain, postPredict, type FormField, type FormGroup, type Hotspot } from "../api/endpoints";
 import { useAssess } from "../state/assessStore";
 import { buildPayload, errorCount, requiredCount, splitErrors, type FormValues } from "../state/payload";
 import { clientErrors } from "../state/validation";
@@ -82,6 +82,13 @@ export function AssessForm({ groups, nearby }: Props) {
       const payload = buildPayload(groups, state.values, state.vehicles, state.pin);
       const result = await postPredict(payload);
       dispatch({ type: "setResult", result });
+      dispatch({ type: "setExplain", explain: { status: "loading" } });
+      try {
+        const explained = await postExplain(payload);
+        dispatch({ type: "setExplain", explain: { status: "ok", factors: explained.factors } });
+      } catch {
+        dispatch({ type: "setExplain", explain: { status: "error" } });
+      }
     } catch (error: unknown) {
       if (error instanceof ApiError && error.normalised.kind === "validation") {
         const { fields: fieldErrors, location } = splitErrors(error.normalised.errors ?? []);

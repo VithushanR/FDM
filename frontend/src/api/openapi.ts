@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explain */
+        post: operations["explain_api_explain_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/hotspots": {
         parameters: {
             query?: never;
@@ -228,6 +245,20 @@ export interface components {
             hotspot: components["schemas"]["HotspotOut"];
             profile: components["schemas"]["ProfileOut"];
             persistence: components["schemas"]["PersistenceOut"];
+        };
+        /** ExplainFactor */
+        ExplainFactor: {
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Points */
+            points: number;
+        };
+        /** ExplainResponse */
+        ExplainResponse: {
+            /** Factors */
+            factors: components["schemas"]["ExplainFactor"][];
         };
         /** FieldOption */
         FieldOption: {
@@ -738,6 +769,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PredictResponse"];
+                };
+            };
+        };
+    };
+    explain_api_explain_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExplainResponse"];
                 };
             };
         };

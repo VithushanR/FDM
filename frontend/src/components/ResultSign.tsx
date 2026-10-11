@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import type { About, PredictResponse } from "../api/endpoints";
-import { MEANING, SEVERITY_FILL, fatalFalseAlarmSentence, pct, reliabilitySentence, weightingNote } from "../state/resultMath";
+import { MEANING, SEVERITY_FILL, pct, reliabilitySentence } from "../state/resultMath";
 import { StatusBox } from "./StatusBox";
 import styles from "./result.module.css";
 
@@ -19,10 +19,10 @@ export function ResultSign({
   const verdict = result.severity;
   const reliability = reliabilitySentence(about, verdict);
   return (
-    <section aria-labelledby="result-heading">
+    <section aria-labelledby="result-heading" className={styles.signSection}>
       <div className={styles.signOuter}>
         <div className={styles.signInner}>
-          <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+          <div style={{ flex: "1 1 100%", minWidth: 0 }}>
             <div style={{ fontSize: 16, opacity: 0.86 }}>Estimated severity</div>
             <h2 id="result-heading" ref={headingRef} tabIndex={-1} className={styles.verdict} style={{ color: "#fff" }}>
               {verdict}
@@ -41,8 +41,8 @@ export function ResultSign({
             <p style={{ fontSize: 17, margin: 0 }}>{MEANING[verdict]}</p>
           </div>
 
-          <div style={{ flex: "1 1 360px", minWidth: 0 }}>
-            <h3 style={{ color: "#fff", fontSize: 22 }}>Model estimate for each class, before weighting</h3>
+          <div style={{ flex: "1 1 100%", minWidth: 0 }}>
+            <h3 style={{ color: "#fff", fontSize: 22 }}>Model estimate for each class</h3>
             {ORDER.map((name) => {
               const value = pct(result.scores[name] ?? 0);
               return (
@@ -55,13 +55,7 @@ export function ResultSign({
                 </div>
               );
             })}
-            <p style={{ fontSize: 15, margin: "10px 0 6px" }}>{weightingNote(result, about.model.fatal_weight)}</p>
-            {reliability ? <p style={{ fontSize: 15, margin: "0 0 6px" }}>{reliability}</p> : null}
-            {verdict === "Fatal" ? (
-              <p style={{ fontSize: 15, margin: "0 0 6px" }}>
-                <strong>{fatalFalseAlarmSentence(about)}</strong>
-              </p>
-            ) : null}
+            {reliability ? <p style={{ fontSize: 15, margin: "10px 0 6px" }}>{reliability}</p> : null}
             {result.warnings.map((warning) => (
               <div
                 key={warning}

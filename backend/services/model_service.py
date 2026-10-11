@@ -24,8 +24,8 @@ from sklearn.preprocessing import OneHotEncoder
 
 from .features import (
     CATEGORICAL_COLUMNS, DAY_OF_WEEK_VALUES, FORM_FIELDS, LEAKAGE_COLUMNS, LEAKAGE_PATTERN, MAX_AGE,
-    GROUP_WIDGETS, MODEL_COLUMNS, OPTIONAL_ENCODING, SEASONS, TIME_BUCKETS, FieldSpec, build_row, normalise_code,
-    parse_date, parse_time,
+    GROUP_WIDGETS, MODEL_COLUMNS, OPTIONAL_ENCODING, SEASONS, TIME_BUCKETS, VEHICLE_TYPES, FieldSpec, build_row,
+    normalise_code, parse_date, parse_time, season_for_month, time_bucket_for_hour,
 )
 
 SCORE_METHODS = ("predict_proba", "decision_function")
@@ -116,6 +116,7 @@ class ModelService:
         self.columns: list[str] = []
         self.classes: list[int] = []
         self.fatal_index = 0
+        self.slight_index: int | None = None
         self.fields: list[FieldSpec] = []
         self.field_options: dict[str, list[tuple[str, str]]] = {}
         self.encoder_categories: dict[str, list[Any]] = {}
@@ -225,6 +226,7 @@ class ModelService:
         if 1 not in self.classes:
             raise ValueError("The model has no Fatal class (code 1).")
         self.fatal_index = self.classes.index(1)
+        self.slight_index = self.classes.index(3) if 3 in self.classes else None
 
     def _collect_encoders(self, step, names: list[str] | None = None) -> None:
         """Find every OneHotEncoder by walking the pipeline, so step names do not matter."""
@@ -485,6 +487,89 @@ class ModelService:
         else:
             effect = f"so the {fatal} result is unchanged"
         return f"The {fatal} {self.score_kind} {action} before the result is chosen, {effect}."
+
+    # Explaining a prediction
+
+    def _severe_share(self, row: np.ndarray) -> float:
+        """Share of the probability (or score) mass that is not Slight: Fatal + Serious."""
+        if self.slight_index is None:
+            return float(row.sum())
+        return float(row.sum() - row[self.slight_index])
+
+    def _vehicle_label(self, key: str) -> str | None:
+        for form_key, label, _ in VEHICLE_TYPES:
+            if form_key == key:
+                return label
+        return None
+
+    def _factor_label(self, spec: FieldSpec, value: Any) -> str | None:
+        """A short, plain-language phrase for the value the user chose. None skips the field."""
+        if spec.kind == "select":
+            label = dict(self.field_options.get(spec.name, [])).get(normalise_code(value))
+            if label is None:
+                return None
+            if spec.name == "speed_limit":
+                return f"{label} speed limit"
+            if spec.name == "urban_or_rural_area":
+                return f"{label} area"
+            return label
+        if spec.name == "number_of_vehicles":
+            count = int(value)
+            return f"{count} {'vehicle' if count == 1 else 'vehicles'}"
+        if spec.name == "driver_ages":
+            ages = value
+            if not ages:
+                return None
+            return f"Driver age {ages[0]}" if len(ages) == 1 else f"Driver ages {min(ages)} to {max(ages)}"
+        if spec.name == "date":
+            day = value
+            return f"{day.strftime('%A')}, {season_for_month(day.month)}"
+        if spec.name == "time":
+            clock = value
+            return f"{clock.strftime('%H:%M')} ({time_bucket_for_hour(clock.hour)})"
+        return None
+
+    def _counterfactual_share(self, answers: dict[str, Any], name: str, value: Any) -> float | None:
+        """Re-scores with one answer reset to blank, the same state a never-filled field would be in."""
+        counter = dict(answers)
+        counter[name] = value
+        try:
+            counter_raw = self.score_frame(self.to_frame([build_row(counter)]))[0][0]
+        except Exception:
+            return None
+        return self._severe_share(counter_raw)
+
+    def explain(self, answers: dict[str, Any]) -> list[dict[str, Any]]:
+        """How much each answer the user actually gave shifted the chance of a Serious or Fatal result,
+        versus leaving that answer blank. Positive points raised the chance, negative points lowered it."""
+        actual_raw = self.score_frame(self.to_frame([build_row(answers)]))[0][0]
+        base = self._severe_share(actual_raw)
+        factors: list[dict[str, Any]] = []
+        for spec in self.fields:
+            if spec.name in ("latitude", "longitude"):
+                continue
+            value = answers.get(spec.name)
+            if _is_blank(value):
+                continue
+            if spec.name == "vehicles":
+                for key in value:
+                    label = self._vehicle_label(key)
+                    if label is None:
+                        continue
+                    remaining = [item for item in value if item != key]
+                    share = self._counterfactual_share(answers, "vehicles", remaining)
+                    if share is None:
+                        continue
+                    factors.append({"field": "vehicles", "label": f"{label} involved", "points": round((base - share) * 100, 1)})
+                continue
+            label = self._factor_label(spec, value)
+            if label is None:
+                continue
+            share = self._counterfactual_share(answers, spec.name, None)
+            if share is None:
+                continue
+            factors.append({"field": spec.name, "label": label, "points": round((base - share) * 100, 1)})
+        return factors
 
     # Describing the form to the frontend
 
